@@ -9,7 +9,11 @@ import javax.crypto.spec.IvParameterSpec;
  de chaves, bem como realizar autenticacao nas mensagens 
  trocadas com base nas chaves. 
 */
-public class Servidor {
+public final class Servidor {
+
+    // Aplicacao de padrão Singleton para classe Servidor 
+    private static volatile Servidor instancia;
+
     /* Chave = CPF do usuário, Value = chave AES */
     private Map<String, SecretKey> chavesAES = null;
     /* Chave = CPF do usuário, Value = chave Vernam */
@@ -17,11 +21,25 @@ public class Servidor {
     /* Chave = CPF do usuário, Value = vetor de inicializacao (temporario) */
     private Map<String, IvParameterSpec> vetores_init = null;
 
-    public Servidor()
+    private Servidor()
     {
         chavesAES = new HashMap<String, SecretKey>();
         chavesVernam = new HashMap<String, String>();
         vetores_init = new HashMap<String, IvParameterSpec>();
+    }
+
+    public static Servidor getInstancia()
+    {
+        Servidor tmp = instancia;
+
+        if(tmp != null) { return tmp; }
+
+        synchronized (Servidor.class) {
+            if(instancia == null){
+                instancia = new Servidor();
+            }
+            return instancia;
+        }
     }
 
     /* ======================================= */
