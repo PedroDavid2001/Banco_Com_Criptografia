@@ -5,15 +5,11 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
 /*
- Classe responsavel por controlar a geracao e distribuicao 
- de chaves, bem como realizar autenticacao nas mensagens 
- trocadas com base nas chaves. 
+  Classe responsavel por controlar a geracao e distribuicao 
+  de chaves, bem como realizar autenticacao nas mensagens 
+  trocadas com base nas chaves. 
 */
 public final class Servidor {
-
-    // Aplicacao de padrão Singleton para classe Servidor 
-    private static volatile Servidor instancia;
-
     /* Chave = CPF do usuário, Value = chave AES */
     private Map<String, SecretKey> chavesAES = null;
     /* Chave = CPF do usuário, Value = chave Vernam */
@@ -27,6 +23,9 @@ public final class Servidor {
         chavesVernam = new HashMap<String, String>();
         vetores_init = new HashMap<String, IvParameterSpec>();
     }
+
+    // Aplicacao de padrão Singleton para classe Servidor 
+    private static volatile Servidor instancia;
 
     public static Servidor getInstancia()
     {
@@ -46,11 +45,11 @@ public final class Servidor {
     /*           GETTERS E SETTERS             */
     /* ======================================= */ 
 
-    public SecretKey getChaveAES(String cpf) { return chavesAES.get(cpf); }
-    public String getChaveVernam(String cpf) { return chavesVernam.get(cpf); }
-    public IvParameterSpec getVetorInit(String cpf) { return vetores_init.get(cpf); }
+    protected SecretKey getChaveAES(String cpf) { return chavesAES.get(cpf); }
+    protected String getChaveVernam(String cpf) { return chavesVernam.get(cpf); }
+    protected IvParameterSpec getVetorInit(String cpf) { return vetores_init.get(cpf); }
     
-    public void setVetorInit(String cpf, IvParameterSpec newVI) 
+    protected void setVetorInit(String cpf, IvParameterSpec newVI) 
     {
         if(cpf.isBlank()){
             System.out.println("CPF inválido!");
@@ -67,7 +66,7 @@ public final class Servidor {
     /*      ADICAO DE UM CPF NO SERVIDOR       */
     /* ======================================= */ 
 
-    public void addCPF(String cpf)
+    protected void addCPF(String cpf)
     {
         try {
             chavesAES.put(cpf, Cifrador.gerarChaveAES());

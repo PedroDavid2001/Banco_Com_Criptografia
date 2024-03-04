@@ -1,8 +1,8 @@
 /* 
- Classe responsavel por realizar: 
- > A cifragem e decifragem de mensagens;
- > A codificacao e decodificao em Base64;
- > A geracao de chaves.
+  Classe responsavel por realizar: 
+  > A cifragem e decifragem de mensagens;
+  > A codificacao e decodificao em Base64;
+  > A geracao de chaves.
 */
 
 import java.util.Base64;
