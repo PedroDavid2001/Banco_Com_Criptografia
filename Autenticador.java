@@ -7,20 +7,7 @@ import javax.crypto.spec.SecretKeySpec;
   e enviados.
 */
 public class Autenticador {
-    private Servidor servidor = null;
-    
-    public Autenticador(Servidor servidor)
-    {
-        if(servidor != null) {
-            this.servidor = servidor;
-        }    
-    }
-
-    public Autenticador()
-    {    
-    }
-
-    protected String gerar_tag(String mensagem, String chave)
+    protected static String gerar_tag(String mensagem, String chave)
     {
         try {
             Mac hMac = Mac.getInstance("HmacSHA256");
@@ -40,7 +27,7 @@ public class Autenticador {
         return null;
     }
 
-    protected boolean autenticar_mensagem(String mensagem, String chave, String tag_recebida) {
+    protected static boolean autenticar_mensagem(String mensagem, String chave, String tag_recebida) {
         String tag_calculada = gerar_tag(mensagem, chave);
         return tag_calculada.equals(tag_recebida);
     }

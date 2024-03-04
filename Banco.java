@@ -1,32 +1,23 @@
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
 
-public class Banco {
-    private List<Cliente> contas = null;
-    private Servidor servidor = null;
-
-    private Banco(Servidor servidor)
-    {
-        contas = new ArrayList<Cliente>();
-        if(servidor != null){
-            this.servidor = servidor;
-        }
-    }
-
-    // Aplicacao de padrão Singleton para classe Banco 
-    private static volatile Banco instancia;
-
-    public static Banco getInstancia(Servidor servidor)
-    {
-        Banco tmp = instancia;
-
-        if(tmp != null) { return tmp; }
-
-        synchronized (Banco.class) {
-            if(instancia == null){
-                instancia = new Banco(servidor);
-            }
-            return instancia;
-        }
-    }
-}
+/*
+ * Banco será responsável por:
+ * > Armazenar os dados das contas cadastradas;
+ * > Receber mensagens, autenticar a 
+ * integridade delas e realizar alguma operacao;
+ * 
+ * Tipos de mensagem:
+ * > "autenticar|${numero_conta}|${senha}"
+ * > "cadastrar"
+ * > "saque|${valor}"
+ * > "deposito|${valor}" 
+ * > "transferencia|${valor}" 
+ * > "saldo"
+ * > "poupanca|${meses}"
+ * > "renda_fixa|${meses}"
+ */
+public interface Banco extends Remote{
+    String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException;
+} 

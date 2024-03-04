@@ -12,7 +12,7 @@ public class Cliente {
 
     private String DIGITOS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     /* Chave protected para ser acessada somente no package e final para ser read-only. */
-    protected final String chave_hash;
+    protected final String chave_hmac;
 
     private Scanner scan = new Scanner(System.in);
 
@@ -23,7 +23,7 @@ public class Cliente {
             int index = new SecureRandom().nextInt(DIGITOS.length());
             chave.append(DIGITOS.charAt(index));
         }
-        this.chave_hash = chave.toString();
+        this.chave_hmac = chave.toString();
 
         PainelCriacao();
     }

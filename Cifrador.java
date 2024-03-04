@@ -24,15 +24,27 @@ public class Cifrador {
 
     private Servidor servidor = null;
     
-    public Cifrador(Servidor servidor)
+    private Cifrador(Servidor servidor)
     {
         if(servidor != null) {
             this.servidor = servidor;
         }    
     }
 
-    public Cifrador()
-    {    
+    // Aplicacao de padrão Singleton para classe Cifrador 
+    private static volatile Cifrador instancia;
+    protected static Cifrador getInstancia(Servidor servidor)
+    {
+        Cifrador tmp = instancia;
+
+        if(tmp != null) { return tmp; }
+
+        synchronized (Cifrador.class) {
+            if(instancia == null){
+                instancia = new Cifrador(servidor);
+            }
+            return instancia;
+        }
     }
 
     /* ======================================= */
