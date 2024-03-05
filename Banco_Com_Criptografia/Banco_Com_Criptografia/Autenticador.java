@@ -1,3 +1,5 @@
+package Banco_Com_Criptografia;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -7,7 +9,7 @@ import javax.crypto.spec.SecretKeySpec;
   e enviados.
 */
 public class Autenticador {
-    protected static String gerar_tag(String mensagem, String chave)
+    public static String gerar_tag(String mensagem, String chave)
     {
         try {
             Mac hMac = Mac.getInstance("HmacSHA256");
@@ -27,7 +29,7 @@ public class Autenticador {
         return null;
     }
 
-    protected static boolean autenticar_mensagem(String mensagem, String chave, String tag_recebida) {
+    public static boolean autenticar_mensagem(String mensagem, String chave, String tag_recebida) {
         String tag_calculada = gerar_tag(mensagem, chave);
         return tag_calculada.equals(tag_recebida);
     }

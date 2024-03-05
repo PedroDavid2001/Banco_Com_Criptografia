@@ -1,3 +1,5 @@
+package Banco_Com_Criptografia;
+
 import java.io.IOException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
@@ -10,7 +12,7 @@ import java.rmi.RemoteException;
  * 
  * Tipos de mensagem:
  * > "autenticar|${numero_conta}|${senha}"
- * > "cadastrar"
+ * > "cadastrar|${cliente.toString()}"
  * > "saque|${valor}"
  * > "deposito|${valor}" 
  * > "transferencia|${valor}" 
@@ -20,4 +22,5 @@ import java.rmi.RemoteException;
  */
 public interface Banco extends Remote{
     String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException;
+    String enviar_mensagem(String cpf, String mensagem, String chave) throws RemoteException;
 } 

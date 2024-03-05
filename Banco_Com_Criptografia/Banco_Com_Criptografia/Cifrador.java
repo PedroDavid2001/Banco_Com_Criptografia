@@ -1,12 +1,6 @@
-/* 
-  Classe responsavel por realizar: 
-  > A cifragem e decifragem de mensagens;
-  > A codificacao e decodificao em Base64;
-  > A geracao de chaves.
-*/
+package Banco_Com_Criptografia;
 
 import java.util.Base64;
-
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -20,6 +14,12 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Random;
 
+/* 
+  Classe responsavel por realizar: 
+  > A cifragem e decifragem de mensagens;
+  > A codificacao e decodificao em Base64;
+  > A geracao de chaves.
+*/
 public class Cifrador {
 
     private Servidor servidor = null;

@@ -1,3 +1,5 @@
+package Banco_Com_Criptografia;
+
 import java.security.SecureRandom;
 import java.util.Scanner;
 
@@ -16,7 +18,7 @@ public class Cliente {
 
     private Scanner scan = new Scanner(System.in);
 
-    protected Cliente()
+    protected Cliente( String [] dados )
     {
         StringBuilder chave = new StringBuilder();
         for(int i = 0; i < 15; i++){
@@ -24,8 +26,15 @@ public class Cliente {
             chave.append(DIGITOS.charAt(index));
         }
         this.chave_hmac = chave.toString();
+        
+        setSaldo(0.0f);
+        setNumeroConta();
 
-        PainelCriacao();
+        setNome(dados[0]);
+        setCpf(dados[1]);
+        setEndereco(dados[2]);
+        setTelefone(dados[3]);
+        setSenha(dados[4]);
     }
 
     private void PainelCriacao()
@@ -82,7 +91,7 @@ public class Cliente {
         return saldo;
     }
 
-    protected void setSaldo(float saldo) {
+    protected boolean setSaldo(float saldo) {
         /* 
          O parametro de setSaldo nao substitui o 
          valor do atributo 'saldo', mas altera ele.
@@ -96,10 +105,11 @@ public class Cliente {
         if(saldo < 0 ){
             if((saldo * -1.0f) > this.saldo){
                 System.out.println("Saldo insuficiente para realizar a operação!");
-                return;
+                return false;
             }
         }
         this.saldo += saldo;
+        return true;
     }
 
     protected String getEndereco() {
@@ -130,6 +140,11 @@ public class Cliente {
         return numero_conta;
     }
 
+    protected void setNumeroConta(String numero_conta)
+    {
+        this.numero_conta = numero_conta;
+    }
+
     /* Numero da conta gerado aleatoriamente */
     private void setNumeroConta() {
         StringBuilder gerador = new StringBuilder();
@@ -153,4 +168,10 @@ public class Cliente {
         this.senha = senha;
     }
 
+    @Override
+    public String toString()
+    {
+        return getNome() + "|" + getCpf() + "|" + getEndereco() + 
+                "|" + getTelefone() + "|" + getSenha();
+    }
 }
