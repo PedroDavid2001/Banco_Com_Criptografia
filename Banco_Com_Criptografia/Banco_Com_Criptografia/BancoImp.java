@@ -2,6 +2,7 @@ package Banco_Com_Criptografia;
 
 import java.rmi.RemoteException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -25,9 +26,14 @@ public class BancoImp implements Banco{
     @Override
     public boolean autenticar(String cpf, String msg_cifrada, String tag_recebida) throws RemoteException
     {
+        /* Resgata as chaves e o vetor de inicializacao atual */
+        String chave_vernam = getChaveVernam(cpf);
+        SecretKey chave_aes = getChaveAES(cpf);
+        byte [] vi_bytes = getVetorInit(cpf);
+        
         /* Decifra mensagem recebida */
-        String mensagem = Cifrador.decifrar_mensagem(msg_cifrada, cpf);
-        String [] dados = mensagem.split("|");
+        String mensagem = Cifrador.decifrar_mensagem(msg_cifrada, cpf, chave_vernam, chave_aes, vi_bytes);
+        String [] dados = mensagem.split("\\|");
 
         /* Verifica a integridade da mensagem */
         if(!Autenticador.autenticar_mensagem(msg_cifrada, buscar_chave_hmac(cpf), tag_recebida)){
@@ -50,12 +56,16 @@ public class BancoImp implements Banco{
     @Override
     public boolean cadastrar(String cpf, String msg_cifrada) throws RemoteException
     {
+        /* Resgata as chaves e o vetor de inicializacao atual */
+        String chave_vernam = getChaveVernam(cpf);
+        SecretKey chave_aes = getChaveAES(cpf);
+        byte [] vi_bytes = getVetorInit(cpf);
+
         /* Decifra mensagem recebida */
-        String mensagem = Cifrador.decifrar_mensagem(msg_cifrada, cpf);
-
+        String mensagem = Cifrador.decifrar_mensagem(msg_cifrada, cpf, chave_vernam, chave_aes, vi_bytes);
         /* Quebra a mensagem para resgatar os dados */
-        String [] dados = mensagem.split("|");
-
+        String [] dados = mensagem.split("\\|");
+        
         /* Verifica se a conta ja esta cadastrada */
         Cliente cliente = buscar_por_cpf(cpf);
         if(cliente != null){
@@ -139,9 +149,13 @@ public class BancoImp implements Banco{
     /* Verifica a integridade da mensagem */
     public String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
     {
-        String chave = getChaveHMAC(cpf);
+        String chave = buscar_chave_hmac(cpf);
         if(Autenticador.autenticar_mensagem(msg_cripto, chave, tag_recebida)){
-            String mensagem = Cifrador.decifrar_mensagem(msg_cripto, cpf);
+            /* Resgata as chaves e o vetor de inicializacao atual */
+            String chave_vernam = getChaveVernam(cpf);
+            SecretKey chave_aes = getChaveAES(cpf);
+            byte [] vi_bytes = getVetorInit(cpf);
+            String mensagem = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
             return enviar_mensagem(cpf, mensagem, chave);
         }
         return null;
@@ -149,10 +163,14 @@ public class BancoImp implements Banco{
     
     public String enviar_mensagem(String cpf, String mensagem, String chave) throws RemoteException
     {
+        /* Resgata as chaves e o vetor de inicializacao atual */
+        String chave_vernam = getChaveVernam(cpf);
+        SecretKey chave_aes = getChaveAES(cpf);
+        byte [] vi_bytes = getVetorInit(cpf);
         // Gera resposta
         String resposta = definir_operacao(cpf, mensagem);
         // Cifra a resposta
-        String cripto_res = Cifrador.cifrar_mensagem(resposta, cpf);
+        String cripto_res = Cifrador.cifrar_mensagem(resposta, cpf, chave_vernam, chave_aes, vi_bytes);
         // Gera a tag
         String tag = Autenticador.gerar_tag(cripto_res, chave);
 
@@ -165,7 +183,7 @@ public class BancoImp implements Banco{
     
     private String definir_operacao(String cpf, String mensagem)
     {
-        String [] operacao = mensagem.split("|");
+        String [] operacao = mensagem.split("\\|");
         
         switch (operacao[0]) {
             case "saque":
@@ -230,7 +248,7 @@ public class BancoImp implements Banco{
 
     public String buscar_chave_hmac(String cpf) throws RemoteException
     {
-        return getChaveHMAC(cpf);
+        return buscar_por_cpf(cpf).chave_hmac;
     }
 
     public SecretKey getChaveAES(String cpf) 
@@ -254,34 +272,28 @@ public class BancoImp implements Banco{
             return chave;
         } 
     }
-    
-    public IvParameterSpec getVetorInit(String cpf) 
-    { 
+
+    public byte [] getVetorInit(String cpf) 
+    {
         IvParameterSpec vi = vetores_init.get(cpf); 
+
         if(vi == null){
             addCPF(cpf);
             return getVetorInit(cpf);
         }else{
-            return vi;
+            return vi.getIV();
         } 
     }
 
-    public String getChaveHMAC(String cpf) 
-    { 
-        return buscar_por_cpf(cpf).chave_hmac; 
-    }
-    
-    public void setVetorInit(String cpf, IvParameterSpec newVI) 
+    public void setVetorInit(String cpf) 
     {
+        IvParameterSpec vi = gerar_vetor_inicializacao();
+
         if(cpf.isBlank()){
             System.out.println("CPF inválido!");
             return;
         }
-        if(newVI == null){
-            System.out.println("Vetor de Inicialização está nulo!");
-            return;
-        }
-        vetores_init.replace(cpf, newVI);
+        vetores_init.replace(cpf, vi);
     }
 
     protected void addCPF(String cpf)
@@ -298,7 +310,18 @@ public class BancoImp implements Banco{
             }
         }
         if(vetores_init.get(cpf) == null){
-            vetores_init.put(cpf, Cifrador.gerar_vetor_inicializacao());
+            vetores_init.put(cpf, gerar_vetor_inicializacao());
         }
+    }
+
+    /* ======================================= */
+    /*    GERACAO DE VETOR DE INICIALIZACAO    */
+    /* ======================================= */ 
+
+    public static IvParameterSpec gerar_vetor_inicializacao()
+    {
+        byte [] vi = new byte[16];
+        new SecureRandom().nextBytes(vi);
+        return new IvParameterSpec(vi);
     }
 }

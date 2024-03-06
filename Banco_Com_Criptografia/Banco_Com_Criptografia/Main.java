@@ -23,8 +23,6 @@ public class Main {
             Registry registro = LocateRegistry.getRegistry(20003);
             registro.bind("Banco", skeleton);
 
-            Cifrador.carregar_banco(banco);
-            
             System.out.println(" > Servidor pronto");
 
         } catch (Exception e) {

@@ -2,9 +2,7 @@ package Banco_Com_Criptografia;
 
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-
 import javax.crypto.SecretKey;
-import javax.crypto.spec.IvParameterSpec;
 
 /*
  * Banco será responsável por:
@@ -31,6 +29,6 @@ public interface Banco extends Remote{
     String buscar_chave_hmac(String cpf) throws RemoteException;
     String getChaveVernam(String cpf) throws RemoteException;
     SecretKey getChaveAES(String cpf) throws RemoteException;
-    IvParameterSpec getVetorInit(String cpf) throws RemoteException;
-    void setVetorInit(String cpf, IvParameterSpec newVI) throws RemoteException;
+    byte [] getVetorInit(String cpf) throws RemoteException;
+    void setVetorInit(String cpf) throws RemoteException;
 } 

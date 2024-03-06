@@ -8,12 +8,9 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
-
-import java.rmi.RemoteException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.util.Random;
 
 /* 
@@ -29,11 +26,6 @@ public class Cifrador {
     /* ======================================= */ 
     
     private static String DIGITOS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    private static Banco bc;
-
-    public static void carregar_banco(Banco banco){
-        bc = banco;
-    }
 
     public static SecretKey gerarChaveAES() throws NoSuchAlgorithmException
     {
@@ -70,16 +62,15 @@ public class Cifrador {
     /*               CIFRAGEM                  */
     /* ======================================= */ 
 
-    public static String cifrar_mensagem(String mensagem, String cpf) throws RemoteException
+    public static String cifrar_mensagem(String mensagem, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes)
     {
-        String msg_vernam = cifra_vernam(mensagem, cpf);
-        byte [] bytes_cifrados = cifra_AES(msg_vernam, cpf);
+        String msg_vernam = cifra_vernam(mensagem, cpf, chave_vernam);
+        byte [] bytes_cifrados = cifra_AES(msg_vernam, cpf, chave_aes, vi_bytes);
         return codificar(bytes_cifrados);
     }
 
-    private static String cifra_vernam(String texto, String cpf) throws RemoteException
+    private static String cifra_vernam(String texto, String cpf, String chave)
     {
-        String chave = bc.getChaveVernam(cpf);
         StringBuilder cifrado = new StringBuilder();
         for(int i = 0; i < texto.length(); i++){
             char r = (char) (texto.charAt(i) ^ (i % chave.length()));
@@ -88,20 +79,13 @@ public class Cifrador {
         return cifrado.toString();
     }
 
-    private static byte[] cifra_AES(String texto, String cpf) throws RemoteException
+    private static byte[] cifra_AES(String texto, String cpf, SecretKey chave, byte [] vi_bytes)
     {
         try {
-            // Resgata a chave e atualiza o vetor de 
-            // inicializacao relativo ao cpf do cliente
-            SecretKey chave = bc.getChaveAES(cpf);
-            bc.setVetorInit(cpf, gerar_vetor_inicializacao());
-
-            System.out.println("Chave = " + chave.toString());
-            System.out.println("Vetor = " + bc.getVetorInit(cpf).toString());
-
             // Configura o cifrador
             Cipher cifrador = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            cifrador.init(Cipher.ENCRYPT_MODE, chave, bc.getVetorInit(cpf));
+            IvParameterSpec vi = new IvParameterSpec(vi_bytes);
+            cifrador.init(Cipher.ENCRYPT_MODE, chave, vi);
 
             // Retorna o array de bytes cifrado
             byte [] bytes_cifrados = cifrador.doFinal(texto.getBytes());
@@ -128,29 +112,25 @@ public class Cifrador {
     /*              DECIFRAGEM                 */
     /* ======================================= */ 
 
-    public static String decifrar_mensagem(String codificado, String cpf) throws RemoteException
+    public static String decifrar_mensagem(String codificado, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes)
     {
         byte [] bytes_cifrados = decodificar(codificado);
-        String msg_codificada = decifragem_AES(bytes_cifrados, cpf);
-        return decifragem_vernam(msg_codificada, cpf);
+        String msg_codificada = decifragem_AES(bytes_cifrados, cpf, chave_aes, vi_bytes);
+        return decifragem_vernam(msg_codificada, cpf, chave_vernam);
     }
 
-    private static String decifragem_vernam(String cifrado, String cpf) throws RemoteException
+    private static String decifragem_vernam(String cifrado, String cpf, String chave)
     {
-        return cifra_vernam(cifrado, cpf);
+        return cifra_vernam(cifrado, cpf, chave);
     }
 
-    private static String decifragem_AES(byte[] bytes_cifrados, String cpf) throws RemoteException
+    private static String decifragem_AES(byte[] bytes_cifrados, String cpf, SecretKey chave, byte [] vi_bytes)
     {
         try{
-            // Resgata a chave
-            SecretKey chave = bc.getChaveAES(cpf);
-            System.out.println("Chave = " + chave.toString());
-            System.out.println("Vetor = " + bc.getVetorInit(cpf).toString());
-
             // Configura o decifrador
             Cipher decifrador = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            decifrador.init(Cipher.DECRYPT_MODE, chave, bc.getVetorInit(cpf));
+            IvParameterSpec vi = new IvParameterSpec(vi_bytes);
+            decifrador.init(Cipher.DECRYPT_MODE, chave, vi);
 
             // Decifra o array de bytes
             byte [] bytes_decifrados = decifrador.doFinal(bytes_cifrados);
@@ -175,14 +155,4 @@ public class Cifrador {
         return null;
     }
 
-    /* ======================================= */
-    /*    GERACAO DE VETOR DE INICIALIZACAO    */
-    /* ======================================= */ 
-
-    public static IvParameterSpec gerar_vetor_inicializacao()
-    {
-        byte [] vi = new byte[16];
-        new SecureRandom().nextBytes(vi);
-        return new IvParameterSpec(vi);
-    }
 }
