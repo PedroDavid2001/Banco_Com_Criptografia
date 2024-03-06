@@ -34,48 +34,53 @@ public class BancoImp implements Banco{
         }
     }
 
-    public void tela_menu()
-    {
-        System.out.println("=== SELECIONE UMA OPÇÃO ===");
-        System.out.println("[1] - Login");
-        System.out.println("[2] - Cadastrar");
-
-    }
-
     /* ======================================= */
     /*                OPERACOES                */
     /* ======================================= */ 
 
-    private boolean autenticar(String numero_conta, String senha)
+    @Override
+    public boolean autenticar(String cpf, String msg_cifrada, String tag_recebida) throws RemoteException
     {
-        Cliente cliente = buscar_por_numero(numero_conta);
+        /* Decifra mensagem recebida */
+        String mensagem = cifrador.decifrar_mensagem(msg_cifrada, cpf);
+        String [] dados = mensagem.split("|");
+
+        /* Verifica a integridade da mensagem */
+        if(!Autenticador.autenticar_mensagem(msg_cifrada, buscar_chave_hmac(cpf), tag_recebida)){
+            return false;
+        }
+
+        Cliente cliente = buscar_por_numero(dados[0]);
         if(cliente == null){
             return false;
         }
 
         String senha_encontrada = cliente.getSenha();
-        if(senha_encontrada.equals(senha)) { 
+        if(senha_encontrada.equals(dados[1])) { 
             return true; 
         }
 
         return false;
     }
 
-    private boolean cadastrar(String [] mensagem)
+    @Override
+    public boolean cadastrar(String cpf, String msg_cifrada) throws RemoteException
     {
-        /*
-         * mensagem[2] e dados_inseridos[1] sao o cpf
-         */
-        Cliente cliente = buscar_por_cpf(mensagem[2]);
+        /* Decifra mensagem recebida */
+        String mensagem = cifrador.decifrar_mensagem(msg_cifrada, cpf);
+
+        /* Quebra a mensagem para resgatar os dados */
+        String [] dados = mensagem.split("|");
+
+        /* Verifica se a conta ja esta cadastrada */
+        Cliente cliente = buscar_por_cpf(cpf);
         if(cliente != null){
             return false;
         }
 
-        String [] dados_inseridos = new String[mensagem.length - 1];
-        System.arraycopy(mensagem, 1, dados_inseridos, 0, (mensagem.length - 1));
-
-        contas.add(new Cliente(dados_inseridos));
-        servidor.addCPF(dados_inseridos[1], buscar_por_cpf(dados_inseridos[1]).chave_hmac);
+        /* Adiciona o cliente no Banco e seus dados no Servidor */
+        contas.add(new Cliente(dados));
+        servidor.addCPF(dados[1], buscar_por_cpf(dados[1]).chave_hmac);
         return true;
     }
 
@@ -165,7 +170,6 @@ public class BancoImp implements Banco{
     /* ======================================= */ 
     
     /* Tipos de mensagem:
-    * > "autenticar|${numero_conta}|${senha}"
     * > "cadastrar"
     * > "saque|${valor}"
     * > "deposito|${valor}" 
@@ -179,20 +183,6 @@ public class BancoImp implements Banco{
         String [] operacao = mensagem.split("|");
         
         switch (operacao[0]) {
-            case "autenticar":
-                if(autenticar(operacao[1], operacao[2])){
-                    return "Entrando no sistema. . .";
-                }else{
-                    return "Dados inválidos!";
-                }
-
-            case "cadastrar":
-                if(cadastrar(operacao)){
-                    return "Conta cadastrada com sucesso!";
-                }else{
-                    return "Já existe uma conta com esses dados!";
-                }
-
             case "saque":
                 if(saque(cpf, operacao[1])){
                     return "Saque realizado com sucesso!";
@@ -244,5 +234,15 @@ public class BancoImp implements Banco{
             }
         }
         return null;
+    }
+
+    public String buscar_cpf_na_autenticacao(String numero_conta) throws RemoteException
+    {
+        return buscar_por_numero(numero_conta).getCpf();
+    }
+
+    public String buscar_chave_hmac(String cpf) throws RemoteException
+    {
+        return servidor.getChaveHMAC(cpf);
     }
 }

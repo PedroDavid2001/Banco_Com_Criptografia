@@ -23,4 +23,8 @@ import java.rmi.RemoteException;
 public interface Banco extends Remote{
     String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException;
     String enviar_mensagem(String cpf, String mensagem, String chave) throws RemoteException;
+    boolean autenticar(String cpf, String msg_cifrada, String tag_recebida) throws RemoteException;
+    boolean cadastrar(String cpf, String msg_cifrada) throws RemoteException;
+    String buscar_cpf_na_autenticacao(String numero_conta) throws RemoteException;
+    String buscar_chave_hmac(String cpf) throws RemoteException;
 } 

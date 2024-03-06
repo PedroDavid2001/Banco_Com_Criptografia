@@ -33,7 +33,7 @@ public class Cifrador {
 
     // Aplicacao de padrão Singleton para classe Cifrador 
     private static volatile Cifrador instancia;
-    protected static Cifrador getInstancia(Servidor servidor)
+    public static Cifrador getInstancia(Servidor servidor)
     {
         Cifrador tmp = instancia;
 

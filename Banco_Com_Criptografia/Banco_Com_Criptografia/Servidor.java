@@ -8,8 +8,7 @@ import javax.crypto.spec.IvParameterSpec;
 
 /*
   Classe responsavel por controlar a geracao e distribuicao 
-  de chaves, bem como realizar autenticacao nas mensagens 
-  trocadas com base nas chaves. 
+  de chaves e vetores de inicializacao. 
 */
 public final class Servidor {
     /* Chave = CPF do usuário, Value = chave AES */
@@ -32,7 +31,7 @@ public final class Servidor {
     // Aplicacao de padrão Singleton para classe Servidor 
     private static volatile Servidor instancia;
 
-    protected static Servidor getInstancia()
+    public static Servidor getInstancia()
     {
         Servidor tmp = instancia;
 
