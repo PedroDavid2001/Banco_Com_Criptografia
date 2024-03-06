@@ -113,6 +113,11 @@ public class Usuario {
         int opt;
         String mensagem = null;
         String valor = null;
+
+        /* Limpa o terminal */
+        System.out.print("\033[H\033[2J");
+        System.out.flush();
+
         do{
             System.out.println("Selecione uma operação:");
             System.out.println("[1] - Saque");
@@ -165,11 +170,14 @@ public class Usuario {
                     System.out.println("Opção inválida!");
                     break;
             }
+
             System.out.println("Enter para continuar. . .");
             teclado.nextLine();
+
             /* Limpa o terminal */
             System.out.print("\033[H\033[2J");
             System.out.flush();
+            
         } while(opt != 0);
         
     }
