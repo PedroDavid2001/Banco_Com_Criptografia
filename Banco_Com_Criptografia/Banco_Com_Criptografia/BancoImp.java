@@ -1,38 +1,22 @@
 package Banco_Com_Criptografia;
 
 import java.rmi.RemoteException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 
 public class BancoImp implements Banco{
-    private List<Cliente> contas = null;
-    private Servidor servidor = null;
-    private Cifrador cifrador = null;
-
-    private BancoImp(Servidor servidor)
-    {
-        contas = new ArrayList<Cliente>();
-        if(servidor != null){
-            this.servidor = servidor;
-        }
-        cifrador = Cifrador.getInstancia(servidor);
-    }
-
-    // Aplicacao de padrão Singleton para classe Banco 
-    private static volatile BancoImp instancia;
-    protected static BancoImp getInstancia(Servidor servidor)
-    {
-        BancoImp tmp = instancia;
-
-        if(tmp != null) { return tmp; }
-
-        synchronized (BancoImp.class) {
-            if(instancia == null){
-                instancia = new BancoImp(servidor);
-            }
-            return instancia;
-        }
-    }
+    private List<Cliente> contas = new ArrayList<Cliente>();
+    /* Chave = CPF do usuário, Value = chave AES */
+    private Map<String, SecretKey> chavesAES = new HashMap<String, SecretKey>();
+    /* Chave = CPF do usuário, Value = chave Vernam */
+    private Map<String, String> chavesVernam = new HashMap<String, String>();
+    /* Chave = CPF do usuário, Value = vetor de inicializacao (temporario) */
+    private Map<String, IvParameterSpec> vetores_init = new HashMap<String, IvParameterSpec>();
 
     /* ======================================= */
     /*                OPERACOES                */
@@ -42,7 +26,7 @@ public class BancoImp implements Banco{
     public boolean autenticar(String cpf, String msg_cifrada, String tag_recebida) throws RemoteException
     {
         /* Decifra mensagem recebida */
-        String mensagem = cifrador.decifrar_mensagem(msg_cifrada, cpf);
+        String mensagem = Cifrador.decifrar_mensagem(msg_cifrada, cpf);
         String [] dados = mensagem.split("|");
 
         /* Verifica a integridade da mensagem */
@@ -67,7 +51,7 @@ public class BancoImp implements Banco{
     public boolean cadastrar(String cpf, String msg_cifrada) throws RemoteException
     {
         /* Decifra mensagem recebida */
-        String mensagem = cifrador.decifrar_mensagem(msg_cifrada, cpf);
+        String mensagem = Cifrador.decifrar_mensagem(msg_cifrada, cpf);
 
         /* Quebra a mensagem para resgatar os dados */
         String [] dados = mensagem.split("|");
@@ -79,8 +63,8 @@ public class BancoImp implements Banco{
         }
 
         /* Adiciona o cliente no Banco e seus dados no Servidor */
-        contas.add(new Cliente(dados));
-        servidor.addCPF(dados[1], buscar_por_cpf(dados[1]).chave_hmac);
+        contas.add(new Cliente(dados, false));
+        addCPF(dados[1]);
         return true;
     }
 
@@ -138,6 +122,16 @@ public class BancoImp implements Banco{
         return "Valor apos " + qnt_meses + " >> R$" + saldo;
     }
 
+    private String visualizar_perfil(String cpf)
+    {
+        Cliente cliente = buscar_por_cpf(cpf);
+
+        return "Nome: " + cliente.getNome() + "\nNumero da conta: " + 
+            cliente.getNumeroConta() + "\nCPF: " + cliente.getCpf() +
+            "\nEndereço: " + cliente.getEndereco() + "\nTelefone: " +
+            cliente.getTelefone(); 
+    }
+
     /* ======================================= */
     /*           TROCA DE MENSAGENS            */
     /* ======================================= */ 
@@ -145,9 +139,9 @@ public class BancoImp implements Banco{
     /* Verifica a integridade da mensagem */
     public String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
     {
-        String chave = servidor.getChaveHMAC(cpf);
+        String chave = getChaveHMAC(cpf);
         if(Autenticador.autenticar_mensagem(msg_cripto, chave, tag_recebida)){
-            String mensagem = cifrador.decifrar_mensagem(msg_cripto, cpf);
+            String mensagem = Cifrador.decifrar_mensagem(msg_cripto, cpf);
             return enviar_mensagem(cpf, mensagem, chave);
         }
         return null;
@@ -158,7 +152,7 @@ public class BancoImp implements Banco{
         // Gera resposta
         String resposta = definir_operacao(cpf, mensagem);
         // Cifra a resposta
-        String cripto_res = cifrador.cifrar_mensagem(resposta, cpf);
+        String cripto_res = Cifrador.cifrar_mensagem(resposta, cpf);
         // Gera a tag
         String tag = Autenticador.gerar_tag(cripto_res, chave);
 
@@ -169,15 +163,6 @@ public class BancoImp implements Banco{
     /*           METODOS ADICIONAIS            */
     /* ======================================= */ 
     
-    /* Tipos de mensagem:
-    * > "cadastrar"
-    * > "saque|${valor}"
-    * > "deposito|${valor}" 
-    * > "transferencia|${valor}|${numero_conta(destino)}" 
-    * > "saldo"
-    * > "poupanca|${meses}"
-    * > "renda_fixa|${valor}|${meses}"
-    */
     private String definir_operacao(String cpf, String mensagem)
     {
         String [] operacao = mensagem.split("|");
@@ -209,7 +194,9 @@ public class BancoImp implements Banco{
 
             case "renda_fixa":
                 return renda_fixa(cpf, operacao[1], operacao[2]);
-
+            
+            case "perfil":
+                return visualizar_perfil(cpf);
             default:
                 return "Operacao invalida!";
  
@@ -243,6 +230,75 @@ public class BancoImp implements Banco{
 
     public String buscar_chave_hmac(String cpf) throws RemoteException
     {
-        return servidor.getChaveHMAC(cpf);
+        return getChaveHMAC(cpf);
+    }
+
+    public SecretKey getChaveAES(String cpf) 
+    { 
+        SecretKey chave = chavesAES.get(cpf);
+        if(chave == null){
+            addCPF(cpf);
+            return getChaveAES(cpf);
+        }else{
+            return chave;
+        } 
+    }
+
+    public String getChaveVernam(String cpf) 
+    { 
+        String chave = chavesVernam.get(cpf); 
+        if(chave == null){
+            addCPF(cpf);
+            return getChaveVernam(cpf);
+        }else{
+            return chave;
+        } 
+    }
+    
+    public IvParameterSpec getVetorInit(String cpf) 
+    { 
+        IvParameterSpec vi = vetores_init.get(cpf); 
+        if(vi == null){
+            addCPF(cpf);
+            return getVetorInit(cpf);
+        }else{
+            return vi;
+        } 
+    }
+
+    public String getChaveHMAC(String cpf) 
+    { 
+        return buscar_por_cpf(cpf).chave_hmac; 
+    }
+    
+    public void setVetorInit(String cpf, IvParameterSpec newVI) 
+    {
+        if(cpf.isBlank()){
+            System.out.println("CPF inválido!");
+            return;
+        }
+        if(newVI == null){
+            System.out.println("Vetor de Inicialização está nulo!");
+            return;
+        }
+        vetores_init.replace(cpf, newVI);
+    }
+
+    protected void addCPF(String cpf)
+    {
+        /* Verifica se o cpf já foi cadastrado para inserir */
+        if(chavesVernam.get(cpf) == null){
+            chavesVernam.put(cpf, Cifrador.gerarChaveVernam());
+        }
+        if(chavesAES.get(cpf) == null){
+            try {
+                chavesAES.put(cpf, Cifrador.gerarChaveAES());
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            }
+        }
+        if(vetores_init.get(cpf) == null){
+            vetores_init.put(cpf, Cifrador.gerar_vetor_inicializacao());
+        }
     }
 }

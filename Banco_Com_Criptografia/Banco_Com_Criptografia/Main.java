@@ -16,14 +16,14 @@ public class Main {
         config();
 
         try {
-            Servidor servidor = Servidor.getInstancia();
-
-            BancoImp banco = BancoImp.getInstancia(servidor);
+            BancoImp banco = new BancoImp();
             Banco skeleton = (Banco) UnicastRemoteObject.exportObject(banco, 0);
             LocateRegistry.createRegistry(20003);
 
             Registry registro = LocateRegistry.getRegistry(20003);
             registro.bind("Banco", skeleton);
+
+            Cifrador.carregar_banco(banco);
             
             System.out.println(" > Servidor pronto");
 

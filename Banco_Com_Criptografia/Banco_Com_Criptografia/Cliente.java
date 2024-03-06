@@ -1,7 +1,6 @@
 package Banco_Com_Criptografia;
 
 import java.security.SecureRandom;
-import java.util.Scanner;
 
 public class Cliente {
     private String nome = null;   
@@ -16,51 +15,39 @@ public class Cliente {
     /* Chave protected para ser acessada somente no package e final para ser read-only. */
     protected final String chave_hmac;
 
-    private Scanner scan = new Scanner(System.in);
-
-    protected Cliente( String [] dados )
+    protected Cliente( String [] dados, boolean carregar_de_arquivo)
     {
-        StringBuilder chave = new StringBuilder();
-        for(int i = 0; i < 15; i++){
-            int index = new SecureRandom().nextInt(DIGITOS.length());
-            chave.append(DIGITOS.charAt(index));
+        /* 
+         Quando carregando de um arquivo, o array 
+         'dados' deverá conter todas as informações 
+        */
+        if(carregar_de_arquivo) {
+            setNome(dados[0]);
+            setCpf(dados[1]);
+            setSaldo(dados[2]);
+            setEndereco(dados[3]);
+            setTelefone(dados[4]);
+            setNumeroConta(dados[5]);
+            chave_hmac = dados[6];
+        } 
+        else {
+            StringBuilder chave = new StringBuilder();
+            for(int i = 0; i < 15; i++){
+                int index = new SecureRandom().nextInt(DIGITOS.length());
+                chave.append(DIGITOS.charAt(index));
+            }
+            this.chave_hmac = chave.toString();
+            
+            setSaldo(0.0f);
+            setNumeroConta();
+    
+            setNome(dados[0]);
+            setCpf(dados[1]);
+            setEndereco(dados[2]);
+            setTelefone(dados[3]);
+            setSenha(dados[4]);
         }
-        this.chave_hmac = chave.toString();
-        
-        setSaldo(0.0f);
-        setNumeroConta();
 
-        setNome(dados[0]);
-        setCpf(dados[1]);
-        setEndereco(dados[2]);
-        setTelefone(dados[3]);
-        setSenha(dados[4]);
-    }
-
-    private void PainelCriacao()
-    {
-        while(nome == null){
-            System.out.print("Digite o nome: ");
-            setNome( scan.nextLine() );
-        }
-        while(cpf == null){
-            System.out.print("Digite o CPF: ");
-            setCpf( scan.nextLine() );
-        }
-        while(endereco == null){
-            System.out.print("Digite o endereço: ");
-            setEndereco( scan.nextLine() );
-        }
-        while(telefone == null){
-            System.out.print("Digite o telefone: ");
-            setTelefone( scan.nextLine() );
-        }
-        while(senha == null){
-            System.out.print("Digite a senha: ");
-            setSenha( scan.nextLine() );
-        }
-        setSaldo(0.0f);
-        setNumeroConta();
     }
 
     public String getNome() {
@@ -89,6 +76,12 @@ public class Cliente {
 
     public float getSaldo() {
         return saldo;
+    }
+
+    public void setSaldo(String saldo) {
+        if(!saldo.isBlank()){
+            this.saldo = Float.parseFloat(saldo);
+        }
     }
 
     protected boolean setSaldo(float saldo) {
@@ -171,7 +164,7 @@ public class Cliente {
     @Override
     public String toString()
     {
-        return getNome() + "|" + getCpf() + "|" + getEndereco() + 
-                "|" + getTelefone() + "|" + getSenha();
+        return getNome() + "|" + getCpf() + "|"+ getSaldo() + "|" + getEndereco() + 
+                "|" + getTelefone()  + "|" + getNumeroConta() + "|" + getSenha() + "|" + chave_hmac;
     }
 }
