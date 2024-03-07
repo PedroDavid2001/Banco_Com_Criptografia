@@ -12,6 +12,7 @@ import javax.crypto.SecretKey;
 
 public class Usuario {
     static Banco stub; 
+    static String last_msg = ". . .";
     static Scanner teclado = new Scanner(System.in);
 
     public static void main(String[] args) 
@@ -54,18 +55,19 @@ public class Usuario {
                     /* Resgata chaves do servidor */
                     String chave_vernam = stub.getChaveVernam(cpf);
                     SecretKey chave_aes = stub.getChaveAES(cpf);
-                    /* Atualiza o vetor de inicializacao e resgata o valor dele */
-                    stub.setVetorInit(cpf);
+                    /* Resgata o valor do vetor de inicialização */
                     byte [] vi_bytes = stub.getVetorInit(cpf);
                     
                     String msg_cifrada = cifrar_autenticacao(numero_conta, senha, chave_vernam, chave_aes, vi_bytes);
                     String tag = Autenticador.gerar_tag(msg_cifrada, stub.buscar_chave_hmac(cpf));
 
                     if(stub.autenticar(cpf, msg_cifrada, tag)){
+                        /* Atualiza o vetor de inicializacao para iniciar as operações */
+                        stub.setVetorInit(cpf);
                         operacoes(stub.buscar_chave_hmac(cpf), cpf, chave_vernam, chave_aes, vi_bytes);
                         break;
                     }else{
-                        System.out.println("Dados incorretos!");
+                        System.out.println("Não foi possível realizar o login!");
                     }
                 }
                 break;
@@ -135,13 +137,13 @@ public class Usuario {
                     System.out.println("Digite o valor do saque: ");
                     valor = teclado.nextLine();
                     mensagem = "saque|" + valor;
-                    System.out.println(troca_de_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
                     break;
                 case 2:
                     System.out.println("Digite o valor do depósito: ");
                     valor = teclado.nextLine();
                     mensagem = "deposito|" + valor;
-                    System.out.println(troca_de_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
                     break;
                 case 3:
                     System.out.println("Digite o valor da transferência: ");
@@ -149,29 +151,31 @@ public class Usuario {
                     System.out.println("Digite o número da conta do destinatário: ");
                     String destino = teclado.nextLine();
                     mensagem = "transferencia|" + valor + "|" + destino;
-                    System.out.println(troca_de_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
                     break;
                 case 4:
                     mensagem = "saldo";
-                    System.out.println(troca_de_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
                     break;
                 case 5:
                     mensagem = simular_investimentos();
-                    System.out.println(troca_de_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
                     break;
                 case 6:
                     mensagem = "perfil";
-                    System.out.println(troca_de_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
                     break;
                 case 0:
                     System.out.println("Desconectando. . .");
+                    mensagem = "sair";
+                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
                     break;
                 default:
-                    System.out.println("Opção inválida!");
+                    System.out.println("Operacao invalida!");
                     break;
             }
 
-            System.out.println("Enter para continuar. . .");
+            System.out.println("\nEnter para continuar. . .");
             teclado.nextLine();
 
             /* Limpa o terminal */
@@ -186,15 +190,24 @@ public class Usuario {
     /*           TROCA DE MENSAGENS            */
     /* ======================================= */ 
 
-    public static String troca_de_mensagem(String mensagem, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes) throws RemoteException
+    public static String troca_de_mensagem(String chave_hmac, String mensagem, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes) throws RemoteException
     {
-        /* Cifra a mensagem */
-        String msg_cripto = Cifrador.cifrar_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes);
-        /* Gera uma tag resgatando a chave hmac armazenada no servidor */
-        String tag = Autenticador.gerar_tag(msg_cripto, stub.buscar_chave_hmac(cpf));
-        /* Envia a mensagem e aguarda a resposta */
-        String resposta = stub.receber_mensagem(cpf, msg_cripto, tag);
-        return desempacotar_resposta(resposta, cpf, chave_vernam, chave_aes, vi_bytes);
+        /* Se resposta está null, então o banco não respondeu a mensagem */
+        try{
+            /* Cifra a mensagem */
+            String msg_cripto = Cifrador.cifrar_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes);
+            /* Atualiza a ultima mensagem enviada */
+            last_msg = msg_cripto;
+            /* Gera uma tag resgatando a chave hmac armazenada no servidor */
+            String tag = Autenticador.gerar_tag(msg_cripto, chave_hmac);
+            
+            /* Envia a mensagem e aguarda a resposta */
+            String resposta = stub.receber_mensagem(cpf, msg_cripto, tag);
+            return desempacotar_resposta(resposta, cpf, chave_vernam, chave_aes, vi_bytes);
+
+        }catch(NullPointerException e){
+            return "Não obteve resposta do servidor!";
+        }
     }
 
     public static String desempacotar_resposta(String resposta, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes)  throws RemoteException

@@ -1,5 +1,10 @@
 package Banco_Com_Criptografia;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.rmi.RemoteException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -18,6 +23,14 @@ public class BancoImp implements Banco{
     private Map<String, String> chavesVernam = new HashMap<String, String>();
     /* Chave = CPF do usuário, Value = vetor de inicializacao (temporario) */
     private Map<String, IvParameterSpec> vetores_init = new HashMap<String, IvParameterSpec>();
+
+    protected BancoImp(){
+        try{
+            ler_arquivo();
+        }catch(IOException e){
+            e.printStackTrace();
+        }   
+    }
 
     /* ======================================= */
     /*                OPERACOES                */
@@ -45,8 +58,15 @@ public class BancoImp implements Banco{
             return false;
         }
 
+        /* Se ja estiver conectado, nao permite outra conexao */
+        if(verificar_conexao(cpf)){
+            return false;
+        }
+
         String senha_encontrada = cliente.getSenha();
         if(senha_encontrada.equals(dados[1])) { 
+            /* Conecta o cliente e abre o acesso */
+            cliente.conectar();
             return true; 
         }
 
@@ -74,6 +94,9 @@ public class BancoImp implements Banco{
 
         /* Adiciona o cliente no Banco e seus dados no Servidor */
         contas.add(new Cliente(dados, false));
+        /* Conecta o cliente */
+        buscar_por_cpf(dados[1]).conectar();
+        /* Gera as chaves e o primeiro vetor de inicializacao */
         addCPF(dados[1]);
         return true;
     }
@@ -157,8 +180,9 @@ public class BancoImp implements Banco{
             byte [] vi_bytes = getVetorInit(cpf);
             String mensagem = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
             return enviar_mensagem(cpf, mensagem, chave);
+        }else{
+            return " ";
         }
-        return null;
     }
     
     public String enviar_mensagem(String cpf, String mensagem, String chave) throws RemoteException
@@ -215,6 +239,16 @@ public class BancoImp implements Banco{
             
             case "perfil":
                 return visualizar_perfil(cpf);
+            case "sair":
+                buscar_por_cpf(cpf).desconectar();
+                System.out.println("Cliente com CPF:" + cpf + " desconectado." );
+                
+                try{
+                    escrever_arquivo();
+                }catch(IOException e){
+                    e.printStackTrace();
+                }
+                return " ";
             default:
                 return "Operacao invalida!";
  
@@ -314,6 +348,11 @@ public class BancoImp implements Banco{
         }
     }
 
+    private boolean verificar_conexao(String cpf) throws RemoteException
+    {
+        return buscar_por_cpf(cpf).esta_conectado();
+    }
+
     /* ======================================= */
     /*    GERACAO DE VETOR DE INICIALIZACAO    */
     /* ======================================= */ 
@@ -324,4 +363,44 @@ public class BancoImp implements Banco{
         new SecureRandom().nextBytes(vi);
         return new IvParameterSpec(vi);
     }
+
+    /* ======================================= */
+    /*       LEITURA E ESCRITA DE ARQUIVO      */
+    /* ======================================= */ 
+
+    private void escrever_arquivo() throws IOException{
+        StringBuilder texto = new StringBuilder();
+
+        if(contas.size() == 0){
+            return;
+        }
+
+        for(Cliente c : contas){
+            texto.append(c.toString() + ";");
+        }
+        
+		BufferedWriter bWriter = new BufferedWriter( new FileWriter("Banco_Com_Criptografia/Banco_Com_Criptografia/Contas.txt") );
+        bWriter.append(texto.toString());
+		bWriter.close();
+	}
+
+    private void ler_arquivo() throws IOException 
+    {
+        BufferedReader bReader = new BufferedReader( new FileReader("Banco_Com_Criptografia/Banco_Com_Criptografia/Contas.txt") );
+        String texto = bReader.readLine();
+        /* Verifica se o arquivo estava vazio */
+        if(texto == null || texto.isBlank()){
+            bReader.close();
+            return;
+        }
+
+        String [] clientes = texto.split(";");
+
+        for(String c : clientes){
+            contas.add(new Cliente(c.split("\\|"), true));
+        }
+
+        bReader.close();
+    }
+
 }

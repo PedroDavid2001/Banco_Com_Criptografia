@@ -10,6 +10,7 @@ public class Cliente {
     private String telefone = null;
     private String numero_conta;
     private String senha = null;
+    private boolean conectado;
 
     private String DIGITOS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     /* Chave protected para ser acessada somente no package e final para ser read-only. */
@@ -28,7 +29,9 @@ public class Cliente {
             setEndereco(dados[3]);
             setTelefone(dados[4]);
             setNumeroConta(dados[5]);
-            chave_hmac = dados[6];
+            setSenha(dados[6]);
+            chave_hmac = dados[7];
+            conectado = false;
         } 
         else {
             StringBuilder chave = new StringBuilder();
@@ -47,7 +50,6 @@ public class Cliente {
             setTelefone(dados[3]);
             setSenha(dados[4]);
         }
-
     }
 
     public String getNome() {
@@ -142,10 +144,10 @@ public class Cliente {
     private void setNumeroConta() {
         StringBuilder gerador = new StringBuilder();
         for(int i = 0; i < 7; i++){
-            gerador.append((char) new SecureRandom().nextInt(10));
+            gerador.append(new SecureRandom().nextInt(10));
         }
         gerador.append('-');
-        gerador.append((char) new SecureRandom().nextInt(10));
+        gerador.append(new SecureRandom().nextInt(10));
         this.numero_conta = gerador.toString();
     }
 
@@ -159,6 +161,18 @@ public class Cliente {
             return;
         }
         this.senha = senha;
+    }
+
+    public boolean esta_conectado() {
+        return conectado;
+    }
+
+    public void conectar() {
+        conectado = true;
+    }
+
+    public void desconectar() {
+        conectado = true;
     }
 
     @Override
