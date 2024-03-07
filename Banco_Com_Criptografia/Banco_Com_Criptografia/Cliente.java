@@ -172,7 +172,7 @@ public class Cliente {
     }
 
     public void desconectar() {
-        conectado = true;
+        conectado = false;
     }
 
     @Override

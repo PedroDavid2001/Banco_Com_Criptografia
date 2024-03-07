@@ -64,6 +64,7 @@ public class Usuario {
                     if(stub.autenticar(cpf, msg_cifrada, tag)){
                         /* Atualiza o vetor de inicializacao para iniciar as operações */
                         stub.setVetorInit(cpf);
+                        vi_bytes = stub.getVetorInit(cpf);
                         operacoes(stub.buscar_chave_hmac(cpf), cpf, chave_vernam, chave_aes, vi_bytes);
                         break;
                     }else{
