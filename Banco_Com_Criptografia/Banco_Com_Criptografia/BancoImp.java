@@ -24,20 +24,26 @@ public class BancoImp implements Banco{
     private Map<String, String> chavesVernam = new HashMap<String, String>();
     /* Chave = CPF do usuário, Value = vetor de inicializacao (temporario) */
     private Map<String, IvParameterSpec> vetores_init = new HashMap<String, IvParameterSpec>();
-    /* Chave = CPF do usuário, Value = chave publica */
-    private Map<String, String> chaves_publicas = new HashMap<String, String>();
+    /* Chave = CPF do usuário, Value = chave publica|p|g */
+    private Map<String, String> ypg_dos_usuarios = new HashMap<String, String>();
 
     /* Chaves assimetricas do banco */
     private final BigInteger chave_privada;
     private final BigInteger chave_publica;
+    private final BigInteger p;
+    private final BigInteger g;
 
     protected BancoImp(){
         // Gera chaves do banco
         String [] chaves = Cifrador.gerarChavesElGamal().split("\\|");
         chave_privada = new BigInteger(chaves[0]);
         chave_publica = new BigInteger(chaves[1]);
-        System.out.println("Chave privada do banco: " + chave_privada);
-        System.out.println("Chave publica do banco: " + chave_publica);
+        p = new BigInteger(chaves[2]);
+        g = new BigInteger(chaves[3]);
+        System.out.println("Chave privada do banco: " + chave_privada.toString());
+        System.out.println("Chave publica do banco: " + chave_publica.toString());
+        System.out.println("p: " + p.toString());
+        System.out.println("g: " + g.toString());
 
         // Carrega clientes
         try{
@@ -222,9 +228,19 @@ public class BancoImp implements Banco{
 
     public String divulgar_chave_publica(String cpf) throws RemoteException
     {
-        String msg = chave_publica.toString();
+        String msg = chave_publica.toString() + "|" + p.toString() + "|" + g.toString();
+        
+        /* Resgata as chaves e o vetor de inicializacao atual */
+        String chave_vernam = getChaveVernam(cpf);
+        SecretKey chave_aes = getChaveAES(cpf);
+        byte [] vi_bytes = getVetorInit(cpf);
         String chave_hmac = buscar_chave_hmac(cpf);
-        return enviar_mensagem(cpf, msg, chave_hmac);
+
+        // Cifra a resposta e gera a tag
+        String cripto_res = Cifrador.cifrar_mensagem(msg, cpf, chave_vernam, chave_aes, vi_bytes);
+        String tag = Autenticador.gerar_tag(cripto_res, chave_hmac);
+
+        return cripto_res + "|" + tag;
     }
 
     public void receber_chave_publica(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
@@ -236,16 +252,23 @@ public class BancoImp implements Banco{
             SecretKey chave_aes = getChaveAES(cpf);
             byte [] vi_bytes = getVetorInit(cpf);
             
-            /* Mensagem esperada é a chave publica do usuario */
-            String chave_pub = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
-            System.out.println("Chave publica do cpf: " + cpf + " = " + chave_pub);
+            /* Mensagem esperada é composta pela chave publica, "p" e "g" do usuario */
+            String ypg = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
+            
+            /*----------------------------------------------------------------- */
+            /* Trecho usado para depuração */
+            String [] dados = ypg.split("\\|");
+            System.out.println("Chave publica do cpf: " + cpf + " = " + dados[0]);
+            System.out.println("\"p\" do cpf: " + cpf + " = " + dados[1]);
+            System.out.println("\"g\" do cpf: " + cpf + " = " + dados[2]);
+            /*----------------------------------------------------------------- */
             
             /* Se ainda não tiver uma chave publica para o cpf, ela é criada no Map */
-            if(chaves_publicas.get(cpf) == null){
-                chaves_publicas.put(cpf, chave_pub);
+            if(ypg_dos_usuarios.get(cpf) == null){
+                ypg_dos_usuarios.put(cpf, ypg);
             }
             else{
-               chaves_publicas.replace(cpf, chave_pub);
+                ypg_dos_usuarios.replace(cpf, ypg);
             }
             
         }

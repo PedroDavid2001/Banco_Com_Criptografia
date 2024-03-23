@@ -117,18 +117,39 @@ public class Usuario {
     {
         BigInteger chave_privada;
         BigInteger chave_publica;
+        BigInteger p;
+        BigInteger g;
 
         String [] chaves = Cifrador.gerarChavesElGamal().split("\\|");
         chave_privada = new BigInteger(chaves[0]);
         chave_publica = new BigInteger(chaves[1]);
-        System.out.println("Chave privada: " + chave_privada);
-        System.out.println("Chave publica: " + chave_publica);
+        p = new BigInteger(chaves[2]);
+        g = new BigInteger(chaves[3]);
+        System.out.println("Chave privada: " + chave_privada.toString());
+        System.out.println("Chave publica: " + chave_publica.toString());
+        System.out.println("p: " + p.toString());
+        System.out.println("g: " + g.toString());
 
         /* 
-         * Antes de iniciar as operações, o usuário envia a chave pública para o banco
+         * Antes de iniciar as operações, o usuário envia a chave pública, "p" e "g" para o banco
          * (Para quando receber respostas do banco)
         */
-        enviar_chave_publica(chave_publica.toString(), chave_hmac, cpf, chave_vernam, chave_aes, vi_bytes);
+        String ypg = chave_publica.toString() + "|" + p.toString() + "|" + g.toString();
+        enviar_chave_publica(ypg, chave_hmac, cpf, chave_vernam, chave_aes, vi_bytes);
+
+        /*
+         * E recebe os dados do banco
+        */
+        String resposta = stub.divulgar_chave_publica(cpf);
+        String ypg_banco = desempacotar_resposta(resposta, cpf, chave_vernam, chave_aes, vi_bytes);
+        
+        /*----------------------------------------------------------------- */
+        /* Trecho usado para depuração */
+        String [] dados = ypg_banco.split("\\|");
+        System.out.println("Chave publica do cpf: " + cpf + " = " + dados[0]);
+        System.out.println("\"p\" do cpf: " + cpf + " = " + dados[1]);
+        System.out.println("\"g\" do cpf: " + cpf + " = " + dados[2]);
+        /*----------------------------------------------------------------- */
 
         int opt;
         String mensagem = null;

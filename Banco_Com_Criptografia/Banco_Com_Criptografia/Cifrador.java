@@ -28,8 +28,9 @@ public class Cifrador {
     /* ======================================= */ 
     
     private static String DIGITOS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    private static final BigInteger UM = BigInteger.ONE;
-    private static final BigInteger DOIS = new BigInteger("2");
+    protected static final BigInteger UM = BigInteger.ONE;
+    protected static final BigInteger DOIS = new BigInteger("2");
+    protected static final BigInteger TRES = new BigInteger("3");
     
     public static SecretKey gerarChaveAES() throws NoSuchAlgorithmException
     {
@@ -52,11 +53,10 @@ public class Cifrador {
     {
         // Numero primo com aproximadamente 617 digitos decimais
         BigInteger p = BigInteger.probablePrime(2048, new SecureRandom());
-        System.out.println("p = " + p.toString());
-
+        
         // Valor utilizado como expoente para verificar se "g" é coprimo de "p".
         // O calculo (p-1/2) garante que o valor de p' sera par e estara no limiar 
-        // [1, p - 1]
+        // [2, p - 2]
         BigInteger p_primo = p.subtract(UM).divide(DOIS);
 
         // Numero coprimo de "p" e que, ao ser elevado a diferentes potências, gere 
@@ -66,24 +66,27 @@ public class Cifrador {
         // Define um valor para "g", tal que: (g ^ p') mod p = 1
         do {
             // A cada iteracao é atribuido a "g" um valor aleatorio dentro do 
-            // intervalo ]2, p - 2]
+            // intervalo [2, p - 2]
             
             // Para alcançar tal valor é feito:
-            // I - Gera um numero aleatório dentro do intervalo [0, (2 ^ numBits - 1)];
-            // II - Descobre o resto da divisão deste valor encontrado com p - 2 e isso 
-            // retorna algo no intervalo [0, p − 3];
+            // I - Gera um valor BigInteger dentro do intervalo [0, (2 ^ numBits - 1)];
+            //
+            // II - Descobre o resto da divisão deste valor encontrado com p - 3;
+            // (Devido o 'mod' retornar sempre um valor entre 0 e o máximo, que é p - 3, 
+            // neste caso, o intervalo do valor resultante será: [0, p − 4])
+            //
             // III - O resultado do módulo é somado com 2.
-            g = DOIS.add(new BigInteger(p.bitLength(), new SecureRandom()).mod(p.subtract(DOIS)));
+            g = DOIS.add(new BigInteger(p.bitLength(), new SecureRandom()).mod(p.subtract(TRES)));
         } while (!g.modPow(p_primo, p).equals(UM));
         
         // Chave privada dentro do intervalo [2, p - 2]
-        BigInteger x = DOIS.add(new BigInteger(p.bitLength(), new SecureRandom()).mod(p.subtract(DOIS)));
+        BigInteger x = DOIS.add(new BigInteger(p.bitLength(), new SecureRandom()).mod(p.subtract(TRES)));
         
         // Chave publica -> y = (g ^ x) mod p 
         BigInteger y = g.modPow(x, p);
 
-        /* Retorno esperado: ${x}|${y} */
-        return x.toString() + "|" + y.toString();
+        /* Retorno esperado: ${x}|${y}|${p}|${g} */
+        return x.toString() + "|" + y.toString() + "|" + p.toString() + "|" + g.toString();
     }
     
     /* ======================================= */
