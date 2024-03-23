@@ -8,9 +8,11 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
+import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Random;
 
 /* 
@@ -26,7 +28,9 @@ public class Cifrador {
     /* ======================================= */ 
     
     private static String DIGITOS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
+    private static final BigInteger UM = BigInteger.ONE;
+    private static final BigInteger DOIS = new BigInteger("2");
+    
     public static SecretKey gerarChaveAES() throws NoSuchAlgorithmException
     {
         KeyGenerator gerador = KeyGenerator.getInstance("AES");
@@ -42,6 +46,44 @@ public class Cifrador {
             chave.append(DIGITOS.charAt(index));
         }
         return chave.toString();
+    }
+
+    public static String gerarChavesElGamal()
+    {
+        // Numero primo com aproximadamente 617 digitos decimais
+        BigInteger p = BigInteger.probablePrime(2048, new SecureRandom());
+        System.out.println("p = " + p.toString());
+
+        // Valor utilizado como expoente para verificar se "g" é coprimo de "p".
+        // O calculo (p-1/2) garante que o valor de p' sera par e estara no limiar 
+        // [1, p - 1]
+        BigInteger p_primo = p.subtract(UM).divide(DOIS);
+
+        // Numero coprimo de "p" e que, ao ser elevado a diferentes potências, gere 
+        // todos os elementos não nulos do grupo multiplicativo (Z/pZ)*.
+        BigInteger g;
+
+        // Define um valor para "g", tal que: (g ^ p') mod p = 1
+        do {
+            // A cada iteracao é atribuido a "g" um valor aleatorio dentro do 
+            // intervalo ]2, p - 2]
+            
+            // Para alcançar tal valor é feito:
+            // I - Gera um numero aleatório dentro do intervalo [0, (2 ^ numBits - 1)];
+            // II - Descobre o resto da divisão deste valor encontrado com p - 2 e isso 
+            // retorna algo no intervalo [0, p − 3];
+            // III - O resultado do módulo é somado com 2.
+            g = DOIS.add(new BigInteger(p.bitLength(), new SecureRandom()).mod(p.subtract(DOIS)));
+        } while (!g.modPow(p_primo, p).equals(UM));
+        
+        // Chave privada dentro do intervalo [2, p - 2]
+        BigInteger x = DOIS.add(new BigInteger(p.bitLength(), new SecureRandom()).mod(p.subtract(DOIS)));
+        
+        // Chave publica -> y = (g ^ x) mod p 
+        BigInteger y = g.modPow(x, p);
+
+        /* Retorno esperado: ${x}|${y} */
+        return x.toString() + "|" + y.toString();
     }
     
     /* ======================================= */
@@ -154,5 +196,11 @@ public class Cifrador {
 
         return null;
     }
+
+    /* ======================================= */
+    /*                   AES                   */
+    /* ======================================= */ 
+
+
 
 }

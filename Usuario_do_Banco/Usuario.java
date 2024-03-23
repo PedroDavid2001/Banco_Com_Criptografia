@@ -3,6 +3,8 @@ package Usuario_do_Banco;
 import Banco_Com_Criptografia.Autenticador;
 import Banco_Com_Criptografia.Banco;
 import Banco_Com_Criptografia.Cifrador;
+
+import java.math.BigInteger;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -113,6 +115,21 @@ public class Usuario {
 
     public static void operacoes(String chave_hmac, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes) throws RemoteException
     {
+        BigInteger chave_privada;
+        BigInteger chave_publica;
+
+        String [] chaves = Cifrador.gerarChavesElGamal().split("\\|");
+        chave_privada = new BigInteger(chaves[0]);
+        chave_publica = new BigInteger(chaves[1]);
+        System.out.println("Chave privada: " + chave_privada);
+        System.out.println("Chave publica: " + chave_publica);
+
+        /* 
+         * Antes de iniciar as operações, o usuário envia a chave pública para o banco
+         * (Para quando receber respostas do banco)
+        */
+        enviar_chave_publica(chave_publica.toString(), chave_hmac, cpf, chave_vernam, chave_aes, vi_bytes);
+
         int opt;
         String mensagem = null;
         String valor = null;
@@ -224,6 +241,17 @@ public class Usuario {
     /* ======================================= */
     /*           METODOS ADICIONAIS            */
     /* ======================================= */ 
+    public static void enviar_chave_publica(String chave_publica, String chave_hmac, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes) throws RemoteException
+    {
+        /* Cifra a mensagem */
+        String msg_cripto = Cifrador.cifrar_mensagem(chave_publica, cpf, chave_vernam, chave_aes, vi_bytes);
+        /* Atualiza a ultima mensagem enviada */
+        last_msg = msg_cripto;
+        /* Gera uma tag resgatando a chave hmac armazenada no servidor */
+        String tag = Autenticador.gerar_tag(msg_cripto, chave_hmac);
+        /* Envia a chave para o banco */
+        stub.receber_chave_publica(cpf, msg_cripto, tag);
+    }
 
     public static String cifrar_autenticacao(String numero_conta, String senha, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes) throws RemoteException
     {

@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.rmi.RemoteException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -23,8 +24,22 @@ public class BancoImp implements Banco{
     private Map<String, String> chavesVernam = new HashMap<String, String>();
     /* Chave = CPF do usuário, Value = vetor de inicializacao (temporario) */
     private Map<String, IvParameterSpec> vetores_init = new HashMap<String, IvParameterSpec>();
+    /* Chave = CPF do usuário, Value = chave publica */
+    private Map<String, String> chaves_publicas = new HashMap<String, String>();
+
+    /* Chaves assimetricas do banco */
+    private final BigInteger chave_privada;
+    private final BigInteger chave_publica;
 
     protected BancoImp(){
+        // Gera chaves do banco
+        String [] chaves = Cifrador.gerarChavesElGamal().split("\\|");
+        chave_privada = new BigInteger(chaves[0]);
+        chave_publica = new BigInteger(chaves[1]);
+        System.out.println("Chave privada do banco: " + chave_privada);
+        System.out.println("Chave publica do banco: " + chave_publica);
+
+        // Carrega clientes
         try{
             ler_arquivo();
         }catch(IOException e){
@@ -204,6 +219,37 @@ public class BancoImp implements Banco{
     /* ======================================= */
     /*           METODOS ADICIONAIS            */
     /* ======================================= */ 
+
+    public String divulgar_chave_publica(String cpf) throws RemoteException
+    {
+        String msg = chave_publica.toString();
+        String chave_hmac = buscar_chave_hmac(cpf);
+        return enviar_mensagem(cpf, msg, chave_hmac);
+    }
+
+    public void receber_chave_publica(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
+    {
+        String chave = buscar_chave_hmac(cpf);
+        if(Autenticador.autenticar_mensagem(msg_cripto, chave, tag_recebida)) {
+            /* Resgata as chaves e o vetor de inicializacao atual */
+            String chave_vernam = getChaveVernam(cpf);
+            SecretKey chave_aes = getChaveAES(cpf);
+            byte [] vi_bytes = getVetorInit(cpf);
+            
+            /* Mensagem esperada é a chave publica do usuario */
+            String chave_pub = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
+            System.out.println("Chave publica do cpf: " + cpf + " = " + chave_pub);
+            
+            /* Se ainda não tiver uma chave publica para o cpf, ela é criada no Map */
+            if(chaves_publicas.get(cpf) == null){
+                chaves_publicas.put(cpf, chave_pub);
+            }
+            else{
+               chaves_publicas.replace(cpf, chave_pub);
+            }
+            
+        }
+    }
     
     private String definir_operacao(String cpf, String mensagem)
     {
@@ -329,6 +375,8 @@ public class BancoImp implements Banco{
         }
         vetores_init.replace(cpf, vi);
     }
+
+    
 
     protected void addCPF(String cpf)
     {

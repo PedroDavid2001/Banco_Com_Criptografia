@@ -31,4 +31,6 @@ public interface Banco extends Remote{
     SecretKey getChaveAES(String cpf) throws RemoteException;
     byte [] getVetorInit(String cpf) throws RemoteException;
     void setVetorInit(String cpf) throws RemoteException;
+    String divulgar_chave_publica(String cpf) throws RemoteException;
+    void receber_chave_publica(String cpf, String msg_cripto, String tag_recebida) throws RemoteException;
 } 
