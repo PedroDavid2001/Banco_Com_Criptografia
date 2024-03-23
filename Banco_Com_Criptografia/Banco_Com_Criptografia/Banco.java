@@ -32,5 +32,5 @@ public interface Banco extends Remote{
     byte [] getVetorInit(String cpf) throws RemoteException;
     void setVetorInit(String cpf) throws RemoteException;
     String divulgar_chave_publica(String cpf) throws RemoteException;
-    void receber_chave_publica(String cpf, String msg_cripto, String tag_recebida) throws RemoteException;
+    void receber_chave_publica(String ypg_cifrado) throws RemoteException;
 } 

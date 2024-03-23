@@ -12,7 +12,6 @@ public class Cliente {
     private String senha = null;
     private boolean conectado;
 
-    private String DIGITOS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     /* Chave protected para ser acessada somente no package e final para ser read-only. */
     protected final String chave_hmac;
 
@@ -36,8 +35,7 @@ public class Cliente {
         else {
             StringBuilder chave = new StringBuilder();
             for(int i = 0; i < 15; i++){
-                int index = new SecureRandom().nextInt(DIGITOS.length());
-                chave.append(DIGITOS.charAt(index));
+                chave.append(new SecureRandom().nextInt(10));
             }
             this.chave_hmac = chave.toString();
             

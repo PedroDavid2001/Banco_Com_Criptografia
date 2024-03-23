@@ -70,7 +70,7 @@ public class BancoImp implements Banco{
         String [] dados = mensagem.split("\\|");
 
         /* Verifica a integridade da mensagem */
-        if(!Autenticador.autenticar_mensagem(msg_cifrada, buscar_chave_hmac(cpf), tag_recebida)){
+        if(!Autenticador.autenticar_mensagem(msg_cifrada, buscar_por_cpf(cpf).chave_hmac, tag_recebida)){
             return false;
         }
 
@@ -193,7 +193,7 @@ public class BancoImp implements Banco{
     /* Verifica a integridade da mensagem */
     public String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
     {
-        String chave = buscar_chave_hmac(cpf);
+        String chave = buscar_por_cpf(cpf).chave_hmac;
         if(Autenticador.autenticar_mensagem(msg_cripto, chave, tag_recebida)){
             /* Resgata as chaves e o vetor de inicializacao atual */
             String chave_vernam = getChaveVernam(cpf);
@@ -234,7 +234,7 @@ public class BancoImp implements Banco{
         String chave_vernam = getChaveVernam(cpf);
         SecretKey chave_aes = getChaveAES(cpf);
         byte [] vi_bytes = getVetorInit(cpf);
-        String chave_hmac = buscar_chave_hmac(cpf);
+        String chave_hmac = buscar_por_cpf(cpf).chave_hmac;
 
         // Cifra a resposta e gera a tag
         String cripto_res = Cifrador.cifrar_mensagem(msg, cpf, chave_vernam, chave_aes, vi_bytes);
@@ -243,9 +243,9 @@ public class BancoImp implements Banco{
         return cripto_res + "|" + tag;
     }
 
-    public void receber_chave_publica(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
+    public void receber_chave_publica(String ypg_cifrado) throws RemoteException
     {
-        String chave = buscar_chave_hmac(cpf);
+        String chave = buscar_por_cpf(cpf).chave_hmac;
         if(Autenticador.autenticar_mensagem(msg_cripto, chave, tag_recebida)) {
             /* Resgata as chaves e o vetor de inicializacao atual */
             String chave_vernam = getChaveVernam(cpf);
@@ -351,7 +351,14 @@ public class BancoImp implements Banco{
 
     public String buscar_chave_hmac(String cpf) throws RemoteException
     {
-        return buscar_por_cpf(cpf).chave_hmac;
+        String chave_hmac = buscar_por_cpf(cpf).chave_hmac;
+        if(chave_hmac == null || chave_hmac.isBlank()){
+            return "";
+        }
+        /* Cifra a chave com a chave pública do cliente */
+        String [] ypg = ypg_dos_usuarios.get(cpf).split("\\|");
+        String chave_pub_cliente = ypg[0];
+        return Autenticador.cifrar_chave_hmac(chave_hmac, chave_pub_cliente, p.toString(), g.toString()); 
     }
 
     public SecretKey getChaveAES(String cpf) 
