@@ -58,17 +58,13 @@ public class Autenticador {
     /*            ASSINATURA DE TAG            */
     /* ======================================= */ 
     
-    private static String assinar_hash(String hash, String chave_privada, String ps, String gs)
+    public static String assinar_hash(String hash, String chave_privada, String ps, String gs)
     {
         BigInteger k;
         BigInteger p = new BigInteger(ps);
-        System.out.println("p enviado = " + p.toString());
         BigInteger g = new BigInteger(gs);
-        System.out.println("g enviado = " + g.toString());
         BigInteger x = new BigInteger(chave_privada);
-        System.out.println("Chave privada = " + x.toString());
         BigInteger m = new BigInteger(hash, 16);
-        System.out.println("m = " + m.toString());
 
         /*
          * a. Gera um valor k, tal que: 1 < k < p-1.
@@ -98,13 +94,10 @@ public class Autenticador {
         BigInteger m_menos_c1x = m.subtract(c1_vezes_x).mod(p.subtract(BigInteger.ONE));
         BigInteger c2 = k_inverso.multiply(m_menos_c1x).mod(p.subtract(BigInteger.ONE));
 
-        System.out.println("C1 = " + c1.toString());
-        System.out.println("C2 = " + c2.toString());
-
-        return c1.toString() + "|" + c2.toString();
+        return c1.toString() + "$" + c2.toString();
     }
 
-    private static boolean decifrar_hash(String hash_assinado, String hash, String chave_publica, String ps, String gs)
+    public static boolean decifrar_hash(String hash_assinado, String hash, String chave_publica, String ps, String gs)
     {
         /* 
          * a. V1 = y^c1 * c1^c2 mod p
@@ -119,28 +112,20 @@ public class Autenticador {
          * c. Verifica se v1 = v2. Caso sejam, a assinatura é válida. 
         */
         
-        String [] c1c2 = hash_assinado.split("\\|");
+        String [] c1c2 = hash_assinado.split("\\$");
         BigInteger c1 = new BigInteger(c1c2[0]);
-        System.out.println("C1 = " + c1.toString());
         BigInteger c2 = new BigInteger(c1c2[1]);
-        System.out.println("C2 = " + c2.toString());
 
         BigInteger p = new BigInteger(ps);
-        System.out.println("p recebido = " + p.toString());
         BigInteger g = new BigInteger(gs);
-        System.out.println("g recebido = " + g.toString());
         BigInteger y = new BigInteger(chave_publica);
-        System.out.println("Chave publica recebida = " + y.toString());
         BigInteger m = new BigInteger(hash, 16);
-        System.out.println("m = " + m.toString());
 
         BigInteger y_pow_c1 = y.modPow(c1, p);
         BigInteger c1_pow_c2 = c1.modPow(c2, p);
         BigInteger v1 = y_pow_c1.multiply(c1_pow_c2).mod(p);
-        System.out.println("V1 = " + v1.toString());
-
+        
         BigInteger v2 = g.modPow(m, p);
-        System.out.println("V2 = " + v2.toString());
 
         if(v1.compareTo(v2) == 0){
             return true;

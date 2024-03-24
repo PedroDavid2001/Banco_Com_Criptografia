@@ -40,11 +40,7 @@ public class BancoImp implements Banco{
         chave_publica = new BigInteger(chaves[1]);
         p = new BigInteger(chaves[2]);
         g = new BigInteger(chaves[3]);
-        System.out.println("Chave privada do banco: " + chave_privada.toString());
-        System.out.println("Chave publica do banco: " + chave_publica.toString());
-        System.out.println("p: " + p.toString());
-        System.out.println("g: " + g.toString());
-
+        
         // Carrega clientes
         try{
             ler_arquivo();
@@ -194,22 +190,29 @@ public class BancoImp implements Banco{
     public String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
     {
         /* Resgata a chave hmac */
-        String chave = buscar_por_cpf(cpf).chave_hmac;
+        String chave_hmac = buscar_por_cpf(cpf).chave_hmac;
         /* Resgata a chave publica do emissor */
-        String chave_pub_cli = ypg_dos_usuarios.get(cpf).split("\\|")[0];
-        if(Autenticador.autenticar_hash_assinado(msg_cripto, chave, tag_recebida, chave_pub_cli, p.toString(), g.toString())){
+        String [] ypg = ypg_dos_usuarios.get(cpf).split("\\|");
+        if(Autenticador.autenticar_hash_assinado(
+                                                    msg_cripto, 
+                                                    chave_hmac, 
+                                                    tag_recebida, 
+                                                    ypg[0], 
+                                                    ypg[1], 
+                                                    ypg[2]
+                                                )){
             /* Resgata as chaves e o vetor de inicializacao atual */
             String chave_vernam = getChaveVernam(cpf);
             SecretKey chave_aes = getChaveAES(cpf);
             byte [] vi_bytes = getVetorInit(cpf);
             String mensagem = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
-            return enviar_mensagem(cpf, mensagem, chave);
+            return enviar_mensagem(cpf, mensagem, chave_hmac);
         }else{
             return " ";
         }
     }
     
-    public String enviar_mensagem(String cpf, String mensagem, String chave) throws RemoteException
+    public String enviar_mensagem(String cpf, String mensagem, String chave_hmac) throws RemoteException
     {
         /* Resgata as chaves e o vetor de inicializacao atual */
         String chave_vernam = getChaveVernam(cpf);
@@ -220,11 +223,14 @@ public class BancoImp implements Banco{
         // Cifra a resposta
         String cripto_res = Cifrador.cifrar_mensagem(resposta, cpf, chave_vernam, chave_aes, vi_bytes);
 
-        /* Resgata o "p" e "g" do destinatario */
-        String [] ypg = ypg_dos_usuarios.get(cpf).split("\\|");
         // Gera a tag e assina
-        String tag_assinada = Autenticador.gerar_hash_assinado(cripto_res, chave, chave_privada.toString(), ypg[1], ypg[2]);
-        System.out.println("Tag enviada = " + tag_assinada);
+        String tag_assinada = Autenticador.gerar_hash_assinado(
+                                                                cripto_res, 
+                                                                chave_hmac, 
+                                                                chave_privada.toString(), 
+                                                                p.toString(), 
+                                                                g.toString()
+                                                            );
         return cripto_res + "|" + tag_assinada;
     }
 
@@ -246,14 +252,6 @@ public class BancoImp implements Banco{
 
     public void receber_chave_publica( String ypg, String cpf ) throws RemoteException
     {
-        /*----------------------------------------------------------------- */
-        /* Trecho usado para depuração */
-        String [] dados = ypg.split("\\|");
-        System.out.println("Chave publica do cpf: " + cpf + " = " + dados[0]);
-        System.out.println("\"p\" do cpf: " + cpf + " = " + dados[1]);
-        System.out.println("\"g\" do cpf: " + cpf + " = " + dados[2]);
-        /*----------------------------------------------------------------- */
-        
         /* Se ainda não tiver uma chave publica para o cpf, ela é criada no Map */
         if(ypg_dos_usuarios.get(cpf) == null){
             ypg_dos_usuarios.put(cpf, ypg);
@@ -406,8 +404,6 @@ public class BancoImp implements Banco{
         }
         vetores_init.replace(cpf, vi);
     }
-
-    
 
     protected void addCPF(String cpf)
     {
