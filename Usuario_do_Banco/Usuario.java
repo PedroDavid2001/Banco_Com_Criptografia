@@ -17,6 +17,16 @@ public class Usuario {
     static String last_msg = ". . .";
     static Scanner teclado = new Scanner(System.in);
 
+    /* Classe utilizada para armazenar os dados de cada usuario durante sua execução */
+    protected class Dados_Cliente {
+        SecretKey chave_aes;
+        String chave_vernam; 
+        String chave_hmac;
+        byte [] vi_bytes;
+        String cpf;
+        BigInteger[] xypg;
+    }
+
     public static void main(String[] args) 
     {
         /*System.out.print("Informe o nome/endereço do RMIRegistry: ");
@@ -26,14 +36,15 @@ public class Usuario {
         try {
             Registry registro = LocateRegistry.getRegistry(host, 20003);
             stub = (Banco) registro.lookup("Banco");
-            login_menu();
+            Usuario usu = new Usuario();
+            login_menu(usu.new Dados_Cliente());
         } catch (Exception e) {
             System.err.println("Cliente: " + e.toString());
             e.printStackTrace();
         }
     }
 
-    public static void login_menu() throws RemoteException
+    public static void login_menu(Dados_Cliente cliente) throws RemoteException
     {
         System.out.println("\n=== MENU INICIAL ===\n");
         System.out.println("Selecione uma opção:");
@@ -52,28 +63,32 @@ public class Usuario {
                     System.out.print("Digite sua senha: ");
                     String senha = teclado.nextLine();
 
-                    String cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
+                    cliente.cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
 
                     /* Gera chaves assimetricas e envia a chave publica, "p" e "g" para o banco */
-                    BigInteger[] xypg = gerar_chaves_assimetricas(cpf);
+                    cliente.xypg = gerar_chaves_assimetricas(cliente.cpf);
                     
                     /* Resgata chaves do servidor */
-                    String chave_vernam = stub.getChaveVernam(cpf);
-                    SecretKey chave_aes = stub.getChaveAES(cpf);
+                    cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
+                    cliente.chave_aes = stub.getChaveAES(cliente.cpf);
                     /* Resgata o valor do vetor de inicialização */
-                    byte [] vi_bytes = stub.getVetorInit(cpf);
+                    cliente.vi_bytes = stub.getVetorInit(cliente.cpf);
                     
                     /* Resgata chave hmac do cliente */
-                    String chave_hmac = Autenticador.decifrar_chave_hmac(stub.buscar_chave_hmac(cpf), xypg[0].toString(), cpf);
+                    cliente.chave_hmac = Autenticador.decifrar_chave_hmac (
+                        stub.buscar_chave_hmac(senha, cliente.cpf, cliente.xypg[2].toString(), cliente.xypg[3].toString()), 
+                        cliente.xypg[0].toString(), 
+                        cliente.xypg[2].toString()
+                    );
 
-                    String msg_cifrada = cifrar_autenticacao(numero_conta, senha, chave_vernam, chave_aes, vi_bytes);
-                    String tag = Autenticador.gerar_tag(msg_cifrada, chave_hmac);
+                    String msg_cifrada = cifrar_autenticacao(numero_conta, senha, cliente);
+                    String tag = Autenticador.gerar_tag(msg_cifrada, cliente.chave_hmac);
 
-                    if(stub.autenticar(cpf, msg_cifrada, tag)){
+                    if(stub.autenticar(cliente.cpf, msg_cifrada, tag)){
                         /* Atualiza o vetor de inicializacao para iniciar as operações */
-                        stub.setVetorInit(cpf);
-                        vi_bytes = stub.getVetorInit(cpf);
-                        operacoes(chave_hmac, cpf, chave_vernam, chave_aes, vi_bytes);
+                        stub.setVetorInit(cliente.cpf);
+                        cliente.vi_bytes = stub.getVetorInit(cliente.cpf);
+                        operacoes(cliente);
                         break;
                     }else{
                         System.out.println("Não foi possível realizar o login!");
@@ -88,8 +103,8 @@ public class Usuario {
                 dados.append( teclado.nextLine() + "|" );
 
                 System.out.print("Digite o seu CPF: ");
-                String cpf = teclado.nextLine();
-                dados.append( cpf + "|" );
+                cliente.cpf = teclado.nextLine();
+                dados.append( cliente.cpf + "|" );
 
                 System.out.print("Digite o seu endereço: ");
                 dados.append( teclado.nextLine() + "|" );
@@ -99,18 +114,29 @@ public class Usuario {
 
                 System.out.print("Digite a sua senha: ");
                 String senha = teclado.nextLine();
-                dados.append( teclado.nextLine());
+                dados.append(senha);
 
                 /* Resgata chaves do servidor */
-                String chave_vernam = stub.getChaveVernam(cpf);
-                SecretKey chave_aes = stub.getChaveAES(cpf);
+                cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
+                cliente.chave_aes = stub.getChaveAES(cliente.cpf);
                 /* Atualiza o vetor de inicializacao e resgata o valor dele */
-                stub.setVetorInit(cpf);
-                byte [] vi_bytes = stub.getVetorInit(cpf);
+                stub.setVetorInit(cliente.cpf);
+                cliente.vi_bytes = stub.getVetorInit(cliente.cpf);
 
-                String msg_cifrada = Cifrador.cifrar_mensagem(dados.toString(), cpf, chave_vernam, chave_aes, vi_bytes);
-                if(stub.cadastrar(cpf, msg_cifrada)){
-                    operacoes(stub.buscar_chave_hmac(senha, cpf), cpf, chave_vernam, chave_aes, vi_bytes);
+                String msg_cifrada = Cifrador.cifrar_mensagem(dados.toString(), cliente.cpf, cliente.chave_vernam, cliente.chave_aes, cliente.vi_bytes);
+                if(stub.cadastrar(cliente.cpf, msg_cifrada)){
+                    /* Gera chaves assimetricas e envia a chave publica, "p" e "g" para o banco */
+                    cliente.xypg = gerar_chaves_assimetricas(cliente.cpf);
+                    /* Resgata chave hmac do cliente */
+                    String chave_hmac_cifrada = stub.buscar_chave_hmac(senha, cliente.cpf, cliente.xypg[2].toString(), cliente.xypg[3].toString());
+                    System.out.println("Chave HMac = " + chave_hmac_cifrada);
+                    cliente.chave_hmac = Autenticador.decifrar_chave_hmac (
+                        chave_hmac_cifrada, 
+                        cliente.xypg[0].toString(), 
+                        cliente.xypg[2].toString()
+                    );
+
+                    operacoes(cliente);
                     break;
                 }else{
                     System.out.println("Usuário já está cadastrado!");
@@ -120,16 +146,11 @@ public class Usuario {
         }
     }
 
-    public static void operacoes(BigInteger[] xypg, String chave_hmac, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes) throws RemoteException
+    public static void operacoes(Dados_Cliente cliente) throws RemoteException
     {
-        /*----------------------------------------------------------------- */
-        /* Trecho usado para depuração */
-        String [] dados = ypg_banco.split("\\|");
-        System.out.println("Chave publica do cpf: " + cpf + " = " + dados[0]);
-        System.out.println("\"p\" do cpf: " + cpf + " = " + dados[1]);
-        System.out.println("\"g\" do cpf: " + cpf + " = " + dados[2]);
-        /*----------------------------------------------------------------- */
-
+        /* Antes de enviar uma mensagem, resgata os dados do destinatario (banco) */
+        BigInteger[] ypg_banco = receber_chave_publica_do_banco(cliente.cpf);
+        
         int opt;
         String mensagem = null;
         String valor = null;
@@ -155,13 +176,13 @@ public class Usuario {
                     System.out.println("Digite o valor do saque: ");
                     valor = teclado.nextLine();
                     mensagem = "saque|" + valor;
-                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 case 2:
                     System.out.println("Digite o valor do depósito: ");
                     valor = teclado.nextLine();
                     mensagem = "deposito|" + valor;
-                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 case 3:
                     System.out.println("Digite o valor da transferência: ");
@@ -169,24 +190,24 @@ public class Usuario {
                     System.out.println("Digite o número da conta do destinatário: ");
                     String destino = teclado.nextLine();
                     mensagem = "transferencia|" + valor + "|" + destino;
-                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 case 4:
                     mensagem = "saldo";
-                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 case 5:
                     mensagem = simular_investimentos();
-                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 case 6:
                     mensagem = "perfil";
-                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 case 0:
                     System.out.println("Desconectando. . .");
                     mensagem = "sair";
-                    System.out.println(troca_de_mensagem(chave_hmac, mensagem, cpf, chave_vernam, chave_aes, vi_bytes));
+                    System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 default:
                     System.out.println("Operacao invalida!");
@@ -208,32 +229,41 @@ public class Usuario {
     /*           TROCA DE MENSAGENS            */
     /* ======================================= */ 
 
-    public static String troca_de_mensagem(String chave_hmac, String mensagem, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes) throws RemoteException
+    public static String troca_de_mensagem(BigInteger [] ypg_banco, String mensagem, Dados_Cliente cliente) throws RemoteException
     {
         /* Se resposta está null, então o banco não respondeu a mensagem */
         try{
             /* Cifra a mensagem */
-            String msg_cripto = Cifrador.cifrar_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes);
+            String msg_cripto = Cifrador.cifrar_mensagem(mensagem, cliente.cpf, cliente.chave_vernam, cliente.chave_aes, cliente.vi_bytes);
             /* Atualiza a ultima mensagem enviada */
             last_msg = msg_cripto;
             /* Gera uma tag resgatando a chave hmac armazenada no servidor */
-            String tag = Autenticador.gerar_tag(msg_cripto, chave_hmac);
-
+            System.out.println("Chave hmac = " + cliente.chave_hmac);
+            String tag_assinado = Autenticador.gerar_hash_assinado(
+                                                                    msg_cripto, 
+                                                                    cliente.chave_hmac, 
+                                                                    cliente.xypg[0].toString(), 
+                                                                    ypg_banco[1].toString(), 
+                                                                    ypg_banco[2].toString()
+                                                                );
+            System.out.println("Tag enviada = " + tag_assinado);
             /* Envia a mensagem e aguarda a resposta */
-            String resposta = stub.receber_mensagem(cpf, msg_cripto, tag);
-            return desempacotar_resposta(resposta, cpf, chave_vernam, chave_aes, vi_bytes);
+            String resposta = stub.receber_mensagem(cliente.cpf, msg_cripto, tag_assinado);
+            System.out.println("Resposta recebida = " + resposta);
+            return desempacotar_resposta(resposta, cliente, ypg_banco);
 
         }catch(NullPointerException e){
+            e.printStackTrace();
             return "Não obteve resposta do servidor!";
         }
     }
 
-    public static String desempacotar_resposta(String chave_hmac, String resposta, String cpf, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes)  throws RemoteException
+    public static String desempacotar_resposta(String resposta, Dados_Cliente cliente, BigInteger [] ypg_banco)  throws RemoteException
     {
-        /* cripto_res + "|" + tag */
+        /* cripto_res + "|" + tag_assinada */
         String [] corpo_msg = resposta.split("\\|"); 
-        if(Autenticador.autenticar_mensagem(corpo_msg[0], chave_hmac, corpo_msg[1])){
-            return Cifrador.decifrar_mensagem(corpo_msg[0], cpf, chave_vernam, chave_aes, vi_bytes);
+        if(Autenticador.autenticar_hash_assinado(corpo_msg[0], cliente.chave_hmac, corpo_msg[1], ypg_banco[0].toString(), cliente.xypg[2].toString(), cliente.xypg[3].toString())){
+            return Cifrador.decifrar_mensagem(corpo_msg[0], cliente.cpf, cliente.chave_vernam, cliente.chave_aes, cliente.vi_bytes);
         }
         return "Houve um erro no recebimento da mensagem!";
     }
@@ -242,7 +272,7 @@ public class Usuario {
     /*           METODOS ADICIONAIS            */
     /* ======================================= */ 
 
-    public static BigInteger[] gerar_chaves_assimetricas(String cpf)
+    public static BigInteger[] gerar_chaves_assimetricas(String cpf) throws RemoteException
     {
         BigInteger chave_privada;
         BigInteger chave_publica;
@@ -259,26 +289,44 @@ public class Usuario {
         System.out.println("p: " + p.toString());
         System.out.println("g: " + g.toString());
 
-        /*
-        * Recebe os dados do banco
-        */
-        String resposta = stub.divulgar_chave_publica(cpf);
-        String ypg_banco = desempacotar_resposta(resposta, cpf, chave_vernam, chave_aes, vi_bytes);
-
         /* 
          * Antes de iniciar as operações, o usuário envia a chave pública, "p" e "g" para o banco
          * (Para quando receber respostas do banco)
         */
         String ypg = chave_publica.toString() + "|" + p.toString() + "|" + g.toString();
-        stub.receber_chave_publica( Autenticador.cifrar_chave_hmac(ypg, ypg, ypg, ypg));
+        stub.receber_chave_publica( ypg, cpf );
+
+        BigInteger[] XYPG = {chave_privada, chave_publica, p, g};
+        return XYPG;
+    }
+
+    public static BigInteger[] receber_chave_publica_do_banco(String cpf) throws RemoteException
+    {
+        /*
+        * Recebe os dados do banco
+        */
+        String ypg_b = stub.divulgar_chave_publica(cpf);
+        
+        if(ypg_b.isBlank()){
+            System.out.println("Seu cpf não está cadastrado no sistema!");
+            return null;
+        }
+
+        String [] ypg_banco = ypg_b.split("\\|");
+        BigInteger [] YPG = {
+                                new BigInteger(ypg_banco[0]), 
+                                new BigInteger(ypg_banco[1]), 
+                                new BigInteger(ypg_banco[2])
+                            };
+        return YPG;
     }
 
 
-    public static String cifrar_autenticacao(String numero_conta, String senha, String chave_vernam, SecretKey chave_aes, byte [] vi_bytes) throws RemoteException
+    public static String cifrar_autenticacao(String numero_conta, String senha, Dados_Cliente cliente) throws RemoteException
     {
         String cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
         String mensagem = numero_conta + "|" + senha;
-        return Cifrador.cifrar_mensagem(mensagem, cpf, chave_vernam, chave_aes, vi_bytes);
+        return Cifrador.cifrar_mensagem(mensagem, cpf, cliente.chave_vernam, cliente.chave_aes, cliente.vi_bytes);
     }
 
     /* Metodo para decidir o tipo de investimento e a quantidade de meses */

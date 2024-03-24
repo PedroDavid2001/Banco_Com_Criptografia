@@ -4,9 +4,6 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.Scanner;
-
-import javax.crypto.SecretKey;
-
 import Banco_Com_Criptografia.Banco;
 
 public class Atacante extends Usuario{
@@ -21,14 +18,15 @@ public class Atacante extends Usuario{
         try {
             Registry registro = LocateRegistry.getRegistry(host, 20003);
             stub = (Banco) registro.lookup("Banco");
-            menu_atacante();
+            Atacante at = new Atacante();
+            menu_atacante(at.new Dados_Cliente());
         } catch (Exception e) {
             System.err.println("Cliente: " + e.toString());
             e.printStackTrace();
         }
     }
 
-    public static void menu_atacante() throws RemoteException
+    public static void menu_atacante(Dados_Cliente cliente) throws RemoteException
     {
         System.out.println("\n=== MENU ATACANTE ===\n");
         System.out.println("Selecione uma opção:");
@@ -43,12 +41,12 @@ public class Atacante extends Usuario{
                 String numero_conta = teclado.nextLine();
                 String cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
                 /* Resgata chaves do servidor */
-                String chave_vernam = stub.getChaveVernam(cpf);
-                SecretKey chave_aes = stub.getChaveAES(cpf);
+                cliente.chave_vernam = stub.getChaveVernam(cpf);
+                cliente.chave_aes = stub.getChaveAES(cpf);
                 /* Atualiza o vetor de inicializacao e resgata o valor dele */
                 stub.setVetorInit(cpf);
-                byte [] vi_bytes = stub.getVetorInit(cpf);
-                operacoes("chave_hmac_falsa", cpf, chave_vernam, chave_aes, vi_bytes);
+                cliente.vi_bytes = stub.getVetorInit(cpf);
+                operacoes(cliente);
                 break;
             case 2:
                 System.out.println("Ultima mensagem enviada: " + last_msg);

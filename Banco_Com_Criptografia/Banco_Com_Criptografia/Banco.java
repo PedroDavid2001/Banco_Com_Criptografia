@@ -26,11 +26,11 @@ public interface Banco extends Remote{
     boolean autenticar(String cpf, String msg_cifrada, String tag_recebida) throws RemoteException;
     boolean cadastrar(String cpf, String msg_cifrada) throws RemoteException;
     String buscar_cpf_na_autenticacao(String numero_conta) throws RemoteException;
-    String buscar_chave_hmac(String cpf) throws RemoteException;
+    String buscar_chave_hmac(String senha, String cpf, String p_cli, String g_cli) throws RemoteException;
     String getChaveVernam(String cpf) throws RemoteException;
     SecretKey getChaveAES(String cpf) throws RemoteException;
     byte [] getVetorInit(String cpf) throws RemoteException;
     void setVetorInit(String cpf) throws RemoteException;
     String divulgar_chave_publica(String cpf) throws RemoteException;
-    void receber_chave_publica(String ypg_cifrado) throws RemoteException;
+    void receber_chave_publica( String ypg, String cpf ) throws RemoteException;
 } 

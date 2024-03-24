@@ -193,8 +193,12 @@ public class BancoImp implements Banco{
     /* Verifica a integridade da mensagem */
     public String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
     {
+        /* Resgata a chave hmac */
         String chave = buscar_por_cpf(cpf).chave_hmac;
-        if(Autenticador.autenticar_mensagem(msg_cripto, chave, tag_recebida)){
+        /* Resgata a chave publica do emissor */
+        String chave_pub_cli = ypg_dos_usuarios.get(cpf).split("\\|")[0];
+        System.out.println("Tag recebida = " + tag_recebida);
+        if(Autenticador.autenticar_hash_assinado(msg_cripto, chave, tag_recebida, chave_pub_cli, p.toString(), g.toString())){
             /* Resgata as chaves e o vetor de inicializacao atual */
             String chave_vernam = getChaveVernam(cpf);
             SecretKey chave_aes = getChaveAES(cpf);
@@ -216,10 +220,13 @@ public class BancoImp implements Banco{
         String resposta = definir_operacao(cpf, mensagem);
         // Cifra a resposta
         String cripto_res = Cifrador.cifrar_mensagem(resposta, cpf, chave_vernam, chave_aes, vi_bytes);
-        // Gera a tag
-        String tag = Autenticador.gerar_tag(cripto_res, chave);
 
-        return cripto_res + "|" + tag;
+        /* Resgata o "p" e "g" do destinatario */
+        String [] ypg = ypg_dos_usuarios.get(cpf).split("\\|");
+        // Gera a tag e assina
+        String tag_assinada = Autenticador.gerar_hash_assinado(cripto_res, chave, chave_privada.toString(), ypg[1], ypg[2]);
+        System.out.println("Tag enviada = " + tag_assinada);
+        return cripto_res + "|" + tag_assinada;
     }
 
     /* ======================================= */
@@ -228,49 +235,32 @@ public class BancoImp implements Banco{
 
     public String divulgar_chave_publica(String cpf) throws RemoteException
     {
-        String msg = chave_publica.toString() + "|" + p.toString() + "|" + g.toString();
-        
-        /* Resgata as chaves e o vetor de inicializacao atual */
-        String chave_vernam = getChaveVernam(cpf);
-        SecretKey chave_aes = getChaveAES(cpf);
-        byte [] vi_bytes = getVetorInit(cpf);
-        String chave_hmac = buscar_por_cpf(cpf).chave_hmac;
+        /* Verifica se o cpf esta cadastrado no sistema */
+        Cliente cliente = buscar_por_cpf(cpf);
+        if(cliente == null){
+            return "";
+        }
 
-        // Cifra a resposta e gera a tag
-        String cripto_res = Cifrador.cifrar_mensagem(msg, cpf, chave_vernam, chave_aes, vi_bytes);
-        String tag = Autenticador.gerar_tag(cripto_res, chave_hmac);
-
-        return cripto_res + "|" + tag;
+        String ypg = chave_publica.toString() + "|" + p.toString() + "|" + g.toString();
+        return ypg;
     }
 
-    public void receber_chave_publica(String ypg_cifrado) throws RemoteException
+    public void receber_chave_publica( String ypg, String cpf ) throws RemoteException
     {
-        String chave = buscar_por_cpf(cpf).chave_hmac;
-        if(Autenticador.autenticar_mensagem(msg_cripto, chave, tag_recebida)) {
-            /* Resgata as chaves e o vetor de inicializacao atual */
-            String chave_vernam = getChaveVernam(cpf);
-            SecretKey chave_aes = getChaveAES(cpf);
-            byte [] vi_bytes = getVetorInit(cpf);
-            
-            /* Mensagem esperada é composta pela chave publica, "p" e "g" do usuario */
-            String ypg = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
-            
-            /*----------------------------------------------------------------- */
-            /* Trecho usado para depuração */
-            String [] dados = ypg.split("\\|");
-            System.out.println("Chave publica do cpf: " + cpf + " = " + dados[0]);
-            System.out.println("\"p\" do cpf: " + cpf + " = " + dados[1]);
-            System.out.println("\"g\" do cpf: " + cpf + " = " + dados[2]);
-            /*----------------------------------------------------------------- */
-            
-            /* Se ainda não tiver uma chave publica para o cpf, ela é criada no Map */
-            if(ypg_dos_usuarios.get(cpf) == null){
-                ypg_dos_usuarios.put(cpf, ypg);
-            }
-            else{
-                ypg_dos_usuarios.replace(cpf, ypg);
-            }
-            
+        /*----------------------------------------------------------------- */
+        /* Trecho usado para depuração */
+        String [] dados = ypg.split("\\|");
+        System.out.println("Chave publica do cpf: " + cpf + " = " + dados[0]);
+        System.out.println("\"p\" do cpf: " + cpf + " = " + dados[1]);
+        System.out.println("\"g\" do cpf: " + cpf + " = " + dados[2]);
+        /*----------------------------------------------------------------- */
+        
+        /* Se ainda não tiver uma chave publica para o cpf, ela é criada no Map */
+        if(ypg_dos_usuarios.get(cpf) == null){
+            ypg_dos_usuarios.put(cpf, ypg);
+        }
+        else{
+            ypg_dos_usuarios.replace(cpf, ypg);
         }
     }
     
@@ -349,16 +339,28 @@ public class BancoImp implements Banco{
         return buscar_por_numero(numero_conta).getCpf();
     }
 
-    public String buscar_chave_hmac(String cpf) throws RemoteException
+    public String buscar_chave_hmac(String senha, String cpf, String p_cli, String g_cli) throws RemoteException
     {
-        String chave_hmac = buscar_por_cpf(cpf).chave_hmac;
-        if(chave_hmac == null || chave_hmac.isBlank()){
+        /* Agora o metodo buscar chave hmac faz uma rapida autenticação */
+        Cliente cliente = buscar_por_cpf(cpf);
+        if(cliente == null){
             return "";
         }
+        if(cliente.getSenha().compareTo(senha) != 0){
+            return "";
+        }
+
+        /* Resgata a chave hmac */
+        String chave_hmac = cliente.chave_hmac;
+        System.out.println("Chave HMac do cpf:" + cpf + " = " + chave_hmac);
+        if(chave_hmac.isBlank()){
+            return "";
+        }
+
         /* Cifra a chave com a chave pública do cliente */
         String [] ypg = ypg_dos_usuarios.get(cpf).split("\\|");
         String chave_pub_cliente = ypg[0];
-        return Autenticador.cifrar_chave_hmac(chave_hmac, chave_pub_cliente, p.toString(), g.toString()); 
+        return Autenticador.cifrar_chave_hmac(chave_hmac, chave_pub_cliente, p_cli, g_cli); 
     }
 
     public SecretKey getChaveAES(String cpf) 

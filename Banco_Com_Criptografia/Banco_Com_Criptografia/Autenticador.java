@@ -17,18 +17,19 @@ public class Autenticador {
     /*      GERACAO E AUTENTICACAO DE TAG      */
     /* ======================================= */
     
-    public static String gerar_hash_assinado(String mensagem, String chave, String chave_privada, String p, String g)
+    public static String gerar_hash_assinado(String mensagem, String chave_hmac, String chave_privada, String p, String g)
     {
-        String hash = gerar_tag(mensagem, chave);
+        String hash = gerar_tag(mensagem, chave_hmac);
         return assinar_hash(hash, chave_privada, p, g);
     }
 
-    public static boolean autenticar_hash_assinado(String hash_assinado, String chave_publica, String p)
+    public static boolean autenticar_hash_assinado(String mensagem, String chave_hmac, String hash_assinado, String chave_publica, String p, String g)
     {
-        String hash = decifrar_hash(hash_assinado, chave_publica, p);
+        String hash = gerar_tag(mensagem, chave_hmac);
+        return decifrar_hash(hash_assinado, hash, chave_publica, p, g);
     }
 
-    private static String gerar_tag(String mensagem, String chave)
+    public static String gerar_tag(String mensagem, String chave)
     {
         try {
             Mac hMac = Mac.getInstance("HmacSHA256");
@@ -48,7 +49,7 @@ public class Autenticador {
         return null;
     }
     
-    private static boolean autenticar_mensagem(String mensagem, String chave, String tag_recebida) {
+    public static boolean autenticar_mensagem(String mensagem, String chave, String tag_recebida) {
         String tag_calculada = gerar_tag(mensagem, chave);
         return tag_calculada.equals(tag_recebida);
     }
@@ -64,37 +65,76 @@ public class Autenticador {
         BigInteger gBI = new BigInteger(g);
         BigInteger x = new BigInteger(chave_privada);
 
+        /*
+         * a. Generate a random number k such that 1 < k < p-1.
+         * b. Calculate c1 = g^k mod p.
+         * c. Calculate c2 = (m — x * C1) * k^-1 mod (p-1).
+         * d. The signature of the message M is the pair (c1, c2).
+        */
+
         // Verifica se mdc(k,p - 1) = 1
         do {
             // Atribui para o "k" um número primo no intervalo [2, p - 2]
             k = BigInteger.probablePrime(pBI.bitLength() - 1, new SecureRandom());
+            System.out.println("K = " + k.toString());
         } while (!k.gcd(pBI.subtract(BigInteger.ONE)).equals(BigInteger.ONE));
 
         BigInteger c1 = gBI.modPow(k, pBI);
+
         BigInteger m = new BigInteger(hash, 16);
-        BigInteger c2 = m.multiply(x.modPow(k, pBI)).mod(pBI);
+        System.out.println("M na cifragem = " + m.toString());
+
+        BigInteger x_vezes_C1 = x.multiply(c1).mod(pBI);
+        BigInteger m_menos_x_vezes_C1 = m.subtract(x_vezes_C1).mod(pBI);
+        BigInteger k_inverso = k.modInverse(pBI.subtract(BigInteger.ONE));
+
+        BigInteger c2 = m_menos_x_vezes_C1.multiply(k_inverso).mod(pBI.subtract(BigInteger.ONE));
 
         return c1.toString() + "|" + c2.toString();
     }
 
-    private static String decifrar_hash(String hash_assinado, String chave_publica, String p)
+    private static boolean decifrar_hash(String hash_assinado, String hash, String chave_publica, String p, String g)
     {
+        /* 
+         * a. Verify that 1 < r < p-1 and 0 < s < p-1. If either condition is not satisfied, the signature is invalid.
+         * b. Calculate v1 = (y^c1 * c1^c2) mod p.
+         * c. Calculate v2 = g ^ m mod p.
+         * d. If v1 = v2, the signature is valid. Otherwise, the signature is invalid.
+        */
+        
         // Obtenção de C1 e C2
         String [] c1c2 = hash_assinado.split("\\|");
         BigInteger c1 = new BigInteger(c1c2[0]);
         BigInteger c2 = new BigInteger(c1c2[1]);
 
-        // Obtenção de p e a chave privada
+        // Obtenção de p, g e a chave publica
         BigInteger pBI = new BigInteger(p);
+        BigInteger gBI = new BigInteger(g);
         BigInteger y = new BigInteger(chave_publica);
 
-        // Decifragem
-        BigInteger s = c1.modPow(y, pBI);
-        BigInteger s_inverso = s.modInverse(pBI);
-        BigInteger m = c2.multiply(s_inverso).mod(pBI);
+        if (c1.compareTo(BigInteger.ONE) <= 0 || 
+            c1.compareTo(pBI.subtract(BigInteger.ONE)) >= 0 || 
+            c2.compareTo(BigInteger.ONE) <= 0 || 
+            c2.compareTo(pBI.subtract(BigInteger.ONE)) >= 0) {
+            return false; 
+        }
 
-        // Retorna o hash sem assinatura
-        return m.toString();
+        BigInteger m = new BigInteger(hash, 16);
+        System.out.println("M na cifragem = " + m.toString());
+
+        BigInteger y_elev_c1 = y.modPow(c1, pBI);
+        BigInteger c1_elev_c2 = c1.modPow(c2, pBI);
+        BigInteger v1 = y_elev_c1.multiply(c1_elev_c2).mod(pBI);
+        System.out.println("V1 = " + v1.toString());
+
+        BigInteger v2 = gBI.modPow(m, pBI);
+        System.out.println("V2 = " + v2.toString());
+
+        if(v1.compareTo(v2) == 0){
+            return true;
+        }
+
+        return false;
     }
 
     /* ======================================= */

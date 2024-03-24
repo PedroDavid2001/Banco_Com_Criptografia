@@ -47,6 +47,8 @@ public class Cliente {
             setEndereco(dados[2]);
             setTelefone(dados[3]);
             setSenha(dados[4]);
+
+            System.out.println("Chame HMac do cpf: " + getCpf() + " = " + chave_hmac);
         }
     }
 
