@@ -197,7 +197,6 @@ public class BancoImp implements Banco{
         String chave = buscar_por_cpf(cpf).chave_hmac;
         /* Resgata a chave publica do emissor */
         String chave_pub_cli = ypg_dos_usuarios.get(cpf).split("\\|")[0];
-        System.out.println("Tag recebida = " + tag_recebida);
         if(Autenticador.autenticar_hash_assinado(msg_cripto, chave, tag_recebida, chave_pub_cli, p.toString(), g.toString())){
             /* Resgata as chaves e o vetor de inicializacao atual */
             String chave_vernam = getChaveVernam(cpf);

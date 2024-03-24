@@ -58,76 +58,88 @@ public class Autenticador {
     /*            ASSINATURA DE TAG            */
     /* ======================================= */ 
     
-    private static String assinar_hash(String hash, String chave_privada, String p, String g)
+    private static String assinar_hash(String hash, String chave_privada, String ps, String gs)
     {
         BigInteger k;
-        BigInteger pBI = new BigInteger(p);
-        BigInteger gBI = new BigInteger(g);
+        BigInteger p = new BigInteger(ps);
+        System.out.println("p enviado = " + p.toString());
+        BigInteger g = new BigInteger(gs);
+        System.out.println("g enviado = " + g.toString());
         BigInteger x = new BigInteger(chave_privada);
+        System.out.println("Chave privada = " + x.toString());
+        BigInteger m = new BigInteger(hash, 16);
+        System.out.println("m = " + m.toString());
 
         /*
-         * a. Generate a random number k such that 1 < k < p-1.
-         * b. Calculate c1 = g^k mod p.
-         * c. Calculate c2 = (m — x * C1) * k^-1 mod (p-1).
-         * d. The signature of the message M is the pair (c1, c2).
+         * a. Gera um valor k, tal que: 1 < k < p-1.
+         * 
+         * b. C1 = g^k mod p.
+         * 
+         * c. C2 = k^-1 * (m — x * C1) mod (p-1) 
+         *                      
+         * >> Propriedade de multiplicação da aritmética modular:
+         *   (A * B) mod C = (A mod C * B mod C) mod C
+         * 
+         * > C2 = [ k^-1 mod (p-1) ] * [(m — x * C1) mod (p-1)] mod (p-1)
+         * 
+         * d. A assinatura do hash é o par -> (C1, C2).
         */
 
         // Verifica se mdc(k,p - 1) = 1
         do {
             // Atribui para o "k" um número primo no intervalo [2, p - 2]
-            k = BigInteger.probablePrime(pBI.bitLength() - 1, new SecureRandom());
-            System.out.println("K = " + k.toString());
-        } while (!k.gcd(pBI.subtract(BigInteger.ONE)).equals(BigInteger.ONE));
+            k = BigInteger.probablePrime(p.bitLength() - 1, new SecureRandom());
+        } while (!k.gcd(p.subtract(BigInteger.ONE)).equals(BigInteger.ONE));
 
-        BigInteger c1 = gBI.modPow(k, pBI);
+        BigInteger c1 = g.modPow(k, p);
 
-        BigInteger m = new BigInteger(hash, 16);
-        System.out.println("M na cifragem = " + m.toString());
+        BigInteger k_inverso = k.modInverse(p.subtract(BigInteger.ONE));
+        BigInteger c1_vezes_x = c1.multiply(x);
+        BigInteger m_menos_c1x = m.subtract(c1_vezes_x).mod(p.subtract(BigInteger.ONE));
+        BigInteger c2 = k_inverso.multiply(m_menos_c1x).mod(p.subtract(BigInteger.ONE));
 
-        BigInteger x_vezes_C1 = x.multiply(c1).mod(pBI);
-        BigInteger m_menos_x_vezes_C1 = m.subtract(x_vezes_C1).mod(pBI);
-        BigInteger k_inverso = k.modInverse(pBI.subtract(BigInteger.ONE));
-
-        BigInteger c2 = m_menos_x_vezes_C1.multiply(k_inverso).mod(pBI.subtract(BigInteger.ONE));
+        System.out.println("C1 = " + c1.toString());
+        System.out.println("C2 = " + c2.toString());
 
         return c1.toString() + "|" + c2.toString();
     }
 
-    private static boolean decifrar_hash(String hash_assinado, String hash, String chave_publica, String p, String g)
+    private static boolean decifrar_hash(String hash_assinado, String hash, String chave_publica, String ps, String gs)
     {
         /* 
-         * a. Verify that 1 < r < p-1 and 0 < s < p-1. If either condition is not satisfied, the signature is invalid.
-         * b. Calculate v1 = (y^c1 * c1^c2) mod p.
-         * c. Calculate v2 = g ^ m mod p.
-         * d. If v1 = v2, the signature is valid. Otherwise, the signature is invalid.
+         * a. V1 = y^c1 * c1^c2 mod p
+         * 
+         * >> Propriedade de multiplicação da aritmética modular:
+         *   (A * B) mod C = (A mod C * B mod C) mod C
+         * 
+         * > V1 = ( y^c1 mod p ) * ( c1^c2 mod p ) mod p
+         * 
+         * b. V2 = g^m mod p.
+         * 
+         * c. Verifica se v1 = v2. Caso sejam, a assinatura é válida. 
         */
         
-        // Obtenção de C1 e C2
         String [] c1c2 = hash_assinado.split("\\|");
         BigInteger c1 = new BigInteger(c1c2[0]);
+        System.out.println("C1 = " + c1.toString());
         BigInteger c2 = new BigInteger(c1c2[1]);
+        System.out.println("C2 = " + c2.toString());
 
-        // Obtenção de p, g e a chave publica
-        BigInteger pBI = new BigInteger(p);
-        BigInteger gBI = new BigInteger(g);
+        BigInteger p = new BigInteger(ps);
+        System.out.println("p recebido = " + p.toString());
+        BigInteger g = new BigInteger(gs);
+        System.out.println("g recebido = " + g.toString());
         BigInteger y = new BigInteger(chave_publica);
-
-        if (c1.compareTo(BigInteger.ONE) <= 0 || 
-            c1.compareTo(pBI.subtract(BigInteger.ONE)) >= 0 || 
-            c2.compareTo(BigInteger.ONE) <= 0 || 
-            c2.compareTo(pBI.subtract(BigInteger.ONE)) >= 0) {
-            return false; 
-        }
-
+        System.out.println("Chave publica recebida = " + y.toString());
         BigInteger m = new BigInteger(hash, 16);
-        System.out.println("M na cifragem = " + m.toString());
+        System.out.println("m = " + m.toString());
 
-        BigInteger y_elev_c1 = y.modPow(c1, pBI);
-        BigInteger c1_elev_c2 = c1.modPow(c2, pBI);
-        BigInteger v1 = y_elev_c1.multiply(c1_elev_c2).mod(pBI);
+        BigInteger y_pow_c1 = y.modPow(c1, p);
+        BigInteger c1_pow_c2 = c1.modPow(c2, p);
+        BigInteger v1 = y_pow_c1.multiply(c1_pow_c2).mod(p);
         System.out.println("V1 = " + v1.toString());
 
-        BigInteger v2 = gBI.modPow(m, pBI);
+        BigInteger v2 = g.modPow(m, p);
         System.out.println("V2 = " + v2.toString());
 
         if(v1.compareTo(v2) == 0){
@@ -141,43 +153,66 @@ public class Autenticador {
     /*         CIFRAGEM DE CHAVE HMAC          */
     /* ======================================= */ 
 
-    public static String cifrar_chave_hmac(String chave, String chave_pub_dest, String p, String g)
+    public static String cifrar_chave_hmac(String chave, String chave_pub_dest, String ps, String gs)
     {
         BigInteger k;
-        BigInteger pBI = new BigInteger(p);
-        BigInteger gBI = new BigInteger(g);
-        /* Chave pública do destinatário usada para cifrar a chave */
+        BigInteger p = new BigInteger(ps);
+        BigInteger g = new BigInteger(gs);
         BigInteger y = new BigInteger(chave_pub_dest);
+
+        /*
+         * a. Gera um valor k, tal que: 1 < k < p-1.
+         * 
+         * b. C1 = g^k mod p
+         * 
+         * c. C2 = (m * y^k) mod p
+         *                      
+         * >> Propriedade de multiplicação da aritmética modular:
+         *   (A * B) mod C = (A mod C * B mod C) mod C
+         * 
+         * > C2 = ( m mod p ) * (y^k mod p) mod p
+         * 
+         * d. A assinatura do hash é o par -> (C1, C2).
+        */
 
         // Verifica se mdc(k,p - 1) = 1
         do {
             // Atribui para o "k" um número primo no intervalo [2, p - 2]
-            k = BigInteger.probablePrime(pBI.bitLength() - 1, new SecureRandom());
-        } while (!k.gcd(pBI.subtract(BigInteger.ONE)).equals(BigInteger.ONE));
+            k = BigInteger.probablePrime(p.bitLength() - 1, new SecureRandom());
+        } while (!k.gcd(p.subtract(BigInteger.ONE)).equals(BigInteger.ONE));
 
-        BigInteger c1 = gBI.modPow(k, pBI);
-        /* Objeto BigInteger relativo a chave */
-        BigInteger chaveBI = new BigInteger(chave);
-        BigInteger c2 = chaveBI.multiply(y.modPow(k, pBI)).mod(pBI);
+        BigInteger c1 = g.modPow(k, p);
+        BigInteger m = new BigInteger(chave);
+        BigInteger m_mod_p = m.mod(p);
+        BigInteger c2 = m_mod_p.multiply(y.modPow(k, p)).mod(p);
 
         return c1.toString() + "|" + c2.toString();
     }
 
-    public static String decifrar_chave_hmac(String chave_cifrada, String chave_privada, String p)
+    public static String decifrar_chave_hmac(String chave_cifrada, String chave_privada, String ps)
     {
-        // Obtenção de C1 e C2
         String [] c1c2 = chave_cifrada.split("\\|");
         BigInteger c1 = new BigInteger(c1c2[0]);
         BigInteger c2 = new BigInteger(c1c2[1]);
 
-        // Obtenção de p e a chave privada
-        BigInteger pBI = new BigInteger(p);
+        BigInteger p = new BigInteger(ps);
         BigInteger x = new BigInteger(chave_privada);
 
-        // Decifragem
-        BigInteger s = c1.modPow(x, pBI);
-        BigInteger s_inverso = s.modInverse(pBI);
-        BigInteger m = c2.multiply(s_inverso).mod(pBI);
+        /*
+         * a. S = c1^x mod p
+         * 
+         * b. m = (c2 * s^-1) mod p
+         *                      
+         * >> Propriedade de multiplicação da aritmética modular:
+         *   (A * B) mod C = (A mod C * B mod C) mod C
+         * 
+         * > m = ( c2 mod p ) * (s^-1 mod p) mod p
+        */
+
+        BigInteger s = c1.modPow(x, p);
+        BigInteger s_inverso = s.modInverse(p);
+        BigInteger c2_mod_p = c2.mod(p);
+        BigInteger m = c2_mod_p.multiply(s_inverso).mod(p);
 
         // Retorna o hash sem assinatura
         return m.toString();

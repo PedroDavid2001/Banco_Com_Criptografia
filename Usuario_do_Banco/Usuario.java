@@ -246,7 +246,6 @@ public class Usuario {
                                                                     ypg_banco[1].toString(), 
                                                                     ypg_banco[2].toString()
                                                                 );
-            System.out.println("Tag enviada = " + tag_assinado);
             /* Envia a mensagem e aguarda a resposta */
             String resposta = stub.receber_mensagem(cliente.cpf, msg_cripto, tag_assinado);
             System.out.println("Resposta recebida = " + resposta);
