@@ -58,7 +58,7 @@ public class Autenticador {
     /*            ASSINATURA DE TAG            */
     /* ======================================= */ 
     
-    public static String assinar_hash(String hash, String chave_privada, String ps, String gs)
+    private static String assinar_hash(String hash, String chave_privada, String ps, String gs)
     {
         BigInteger k;
         BigInteger p = new BigInteger(ps);
@@ -97,7 +97,7 @@ public class Autenticador {
         return c1.toString() + "$" + c2.toString();
     }
 
-    public static boolean decifrar_hash(String hash_assinado, String hash, String chave_publica, String ps, String gs)
+    private static boolean decifrar_hash(String hash_assinado, String hash, String chave_publica, String ps, String gs)
     {
         /* 
          * a. V1 = y^c1 * c1^c2 mod p

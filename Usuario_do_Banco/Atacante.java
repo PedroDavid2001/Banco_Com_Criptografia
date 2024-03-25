@@ -1,10 +1,12 @@
 package Usuario_do_Banco;
 
+import java.math.BigInteger;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.Scanner;
 import Banco_Com_Criptografia.Banco;
+import Banco_Com_Criptografia.Autenticador;
 
 public class Atacante extends Usuario{
     static Banco stub; 
@@ -28,31 +30,63 @@ public class Atacante extends Usuario{
 
     public static void menu_atacante(Dados_Cliente cliente) throws RemoteException
     {
-        System.out.println("\n=== MENU ATACANTE ===\n");
-        System.out.println("Selecione uma opção:");
-        System.out.println("[1] - Forçar envio de mensagem");
-        System.out.println("[2] - Analisar último pacote (sniffing)");
-        int opt = teclado.nextInt();
-        teclado.nextLine();
-
-        switch(opt){
-            case 1:
-                System.out.print("Digite o numero da conta alvo: ");
-                String numero_conta = teclado.nextLine();
-                String cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
-                /* Resgata chaves do servidor */
-                cliente.chave_vernam = stub.getChaveVernam(cpf);
-                cliente.chave_aes = stub.getChaveAES(cpf);
-                /* Atualiza o vetor de inicializacao e resgata o valor dele */
-                stub.setVetorInit(cpf);
-                cliente.vi_bytes = stub.getVetorInit(cpf);
-                operacoes(cliente);
-                break;
-            case 2:
-                System.out.println("Ultima mensagem enviada: " + last_msg);
-                break;
+        while(true){
+            System.out.println("\n=== MENU ATACANTE ===\n");
+            System.out.println("Selecione uma opção:");
+            System.out.println("[1] - Forçar envio de mensagem");
+            System.out.println("[2] - Analisar último pacote (sniffing)");
+            System.out.println("[0] - Sair");
+            int opt = teclado.nextInt();
+            teclado.nextLine();
+    
+            switch(opt){
+                case 1:
+                    System.out.print("Digite o numero da conta alvo: ");
+                    String numero_conta = teclado.nextLine();
+                    cliente.cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
+                    /* Resgata chaves do servidor */
+                    cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
+                    cliente.chave_aes = stub.getChaveAES(cliente.cpf);
+                    /* Resgata valores de YPG do banco */
+                    BigInteger [] ypg_banco = receber_chave_publica_do_banco(cliente.cpf);
+                    /* Atualiza o vetor de inicializacao e resgata o valor dele */
+                    stub.setVetorInit(cliente.cpf);
+                    cliente.vi_bytes = stub.getVetorInit(cliente.cpf);
+    
+                    System.out.println("Digite a mensagem capturada: ");
+                    String msg_cripto = teclado.nextLine();
+                    System.out.println("Digite o valor de p: ");
+                    String p = teclado.nextLine();
+                    System.out.println("Digite o valor de g: ");
+                    String g = teclado.nextLine();
+                    
+                    try {
+                        String tag_assinado = Autenticador.gerar_hash_assinado(
+                                                                                msg_cripto, 
+                                                                                cliente.chave_hmac, 
+                                                                                /* Atacante não tem acesso 
+                                                                                a chave privada do usuario */
+                                                                                "1", 
+                                                                                p, 
+                                                                                g
+                                                                            );
+                        /* Envia a mensagem e aguarda a resposta */
+                        String resposta = stub.receber_mensagem(cliente.cpf, msg_cripto, tag_assinado); 
+                        System.out.println(desempacotar_resposta(resposta, cliente, ypg_banco));
+                    } catch (NullPointerException e){
+                        e.printStackTrace();
+                        System.out.println("Não obteve resposta do servidor!");
+                    }
+    
+                    break;
+                case 2:
+                    System.out.println("Ultima mensagem enviada: " + stub.last_msg());
+                    System.out.println("Valor de \"p\": " + stub.last_p());
+                    System.out.println("Valor de \"g\": " + stub.last_g());
+                    break;
+                case 0:
+                    return;
+            }
         }
-
-        
     }
 }

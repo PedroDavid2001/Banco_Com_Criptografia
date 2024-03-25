@@ -33,6 +33,11 @@ public class BancoImp implements Banco{
     private final BigInteger p;
     private final BigInteger g;
 
+    /* Ultimas informações recebidas pelo banco */
+    private String last_msg = ". . .";
+    private String last_p = ". . .";
+    private String last_g = ". . .";
+
     protected BancoImp(){
         // Gera chaves do banco
         String [] chaves = Cifrador.gerarChavesElGamal().split("\\|");
@@ -159,7 +164,7 @@ public class BancoImp implements Banco{
         for(int i = 0; i < qnt_meses; i++){
             saldo += saldo * 0.005;
         }
-        return "Saldo apos " + qnt_meses + " >> R$" + saldo;
+        return "Saldo apos " + qnt_meses + " meses >> R$" + saldo;
     }
 
     private String renda_fixa(String cpf, String valor, String meses) 
@@ -169,7 +174,7 @@ public class BancoImp implements Banco{
         for(int i = 0; i < qnt_meses; i++){
             saldo += saldo * 0.015;
         }
-        return "Valor apos " + qnt_meses + " >> R$" + saldo;
+        return "Valor apos " + qnt_meses + " meses >> R$" + saldo;
     }
 
     private String visualizar_perfil(String cpf)
@@ -206,6 +211,12 @@ public class BancoImp implements Banco{
             SecretKey chave_aes = getChaveAES(cpf);
             byte [] vi_bytes = getVetorInit(cpf);
             String mensagem = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
+
+            /* Atualiza as informações recebidas pelo usuário */
+            last_msg = msg_cripto;
+            last_p = ypg[1];
+            last_g = ypg[2];
+
             return enviar_mensagem(cpf, mensagem, chave_hmac);
         }else{
             return " ";
@@ -250,8 +261,21 @@ public class BancoImp implements Banco{
         return ypg;
     }
 
-    public void receber_chave_publica( String ypg, String cpf ) throws RemoteException
+    public void receber_chave_publica( String ypg, String cpf, String senha ) throws RemoteException
     {
+        /* Agora o metodo buscar chave hmac faz uma rapida autenticação */
+        Cliente cliente = buscar_por_cpf(cpf);
+        if(cliente == null){
+            return;
+        }
+        if(cliente.getSenha().compareTo(senha) != 0){
+            return;
+        }
+        /* Também verifica se o usuário já não está conectado */
+        if(cliente.esta_conectado()){
+            return;
+        }
+
         /* Se ainda não tiver uma chave publica para o cpf, ela é criada no Map */
         if(ypg_dos_usuarios.get(cpf) == null){
             ypg_dos_usuarios.put(cpf, ypg);
@@ -349,7 +373,6 @@ public class BancoImp implements Banco{
 
         /* Resgata a chave hmac */
         String chave_hmac = cliente.chave_hmac;
-        System.out.println("Chave HMac do cpf:" + cpf + " = " + chave_hmac);
         if(chave_hmac.isBlank()){
             return "";
         }
@@ -426,6 +449,21 @@ public class BancoImp implements Banco{
     private boolean verificar_conexao(String cpf) throws RemoteException
     {
         return buscar_por_cpf(cpf).esta_conectado();
+    }
+
+    public String last_msg() throws RemoteException
+    {
+        return last_msg;
+    }
+    
+    public String last_p() throws RemoteException
+    {
+        return last_p;
+    }
+
+    public String last_g() throws RemoteException
+    {
+        return last_g;
     }
 
     /* ======================================= */

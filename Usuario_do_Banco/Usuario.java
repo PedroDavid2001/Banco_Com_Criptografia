@@ -13,9 +13,8 @@ import java.util.Scanner;
 import javax.crypto.SecretKey;
 
 public class Usuario {
-    static Banco stub; 
-    static String last_msg = ". . .";
-    static Scanner teclado = new Scanner(System.in);
+    public static Banco stub; 
+    public static Scanner teclado = new Scanner(System.in);
 
     /* Classe utilizada para armazenar os dados de cada usuario durante sua execução */
     protected class Dados_Cliente {
@@ -25,6 +24,7 @@ public class Usuario {
         byte [] vi_bytes;
         String cpf;
         BigInteger[] xypg;
+        String senha;
     }
 
     public static void main(String[] args) 
@@ -56,17 +56,17 @@ public class Usuario {
         switch (opt) {
             case 1:
                 while(true){
-                    System.out.println("--- Tela de login ---");
+                    System.out.println("\n--- Tela de login ---");
                     System.out.print("Digite o numero da conta: ");
                     String numero_conta = teclado.nextLine();
 
                     System.out.print("Digite sua senha: ");
-                    String senha = teclado.nextLine();
+                    cliente.senha = teclado.nextLine();
 
                     cliente.cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
 
                     /* Gera chaves assimetricas e envia a chave publica, "p" e "g" para o banco */
-                    cliente.xypg = gerar_chaves_assimetricas(cliente.cpf);
+                    cliente.xypg = gerar_chaves_assimetricas(cliente);
                     
                     /* Resgata chaves do servidor */
                     cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
@@ -77,7 +77,7 @@ public class Usuario {
                     /* Resgata chave hmac do cliente */
                     cliente.chave_hmac = Autenticador.decifrar_chave_hmac (
                         stub.buscar_chave_hmac(
-                                                senha, 
+                                                cliente.senha, 
                                                 cliente.cpf, 
                                                 cliente.xypg[2].toString(), 
                                                 cliente.xypg[3].toString()
@@ -86,7 +86,7 @@ public class Usuario {
                         cliente.xypg[2].toString()
                     );
 
-                    String msg_cifrada = cifrar_autenticacao(numero_conta, senha, cliente);
+                    String msg_cifrada = cifrar_autenticacao(numero_conta, cliente.senha, cliente);
                     String tag = Autenticador.gerar_tag(msg_cifrada, cliente.chave_hmac);
 
                     if(stub.autenticar(cliente.cpf, msg_cifrada, tag)){
@@ -96,7 +96,7 @@ public class Usuario {
                         operacoes(cliente);
                         break;
                     }else{
-                        System.out.println("Não foi possível realizar o login!");
+                        System.out.println("\nNão foi possível realizar o login!");
                     }
                 }
                 break;
@@ -118,8 +118,8 @@ public class Usuario {
                 dados.append( teclado.nextLine() + "|" );
 
                 System.out.print("Digite a sua senha: ");
-                String senha = teclado.nextLine();
-                dados.append(senha);
+                cliente.senha = teclado.nextLine();
+                dados.append(cliente.senha);
 
                 /* Resgata chaves do servidor */
                 cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
@@ -137,10 +137,10 @@ public class Usuario {
                                                             );
                 if(stub.cadastrar(cliente.cpf, msg_cifrada)){
                     /* Gera chaves assimetricas e envia a chave publica, "p" e "g" para o banco */
-                    cliente.xypg = gerar_chaves_assimetricas(cliente.cpf);
+                    cliente.xypg = gerar_chaves_assimetricas(cliente);
                     /* Resgata chave hmac do cliente */
                     String chave_hmac_cifrada = stub.buscar_chave_hmac(
-                                                                        senha, 
+                                                                        cliente.senha, 
                                                                         cliente.cpf, 
                                                                         cliente.xypg[2].toString(), 
                                                                         cliente.xypg[3].toString()
@@ -250,8 +250,6 @@ public class Usuario {
         try{
             /* Cifra a mensagem */
             String msg_cripto = Cifrador.cifrar_mensagem(mensagem, cliente.cpf, cliente.chave_vernam, cliente.chave_aes, cliente.vi_bytes);
-            /* Atualiza a ultima mensagem enviada */
-            last_msg = msg_cripto;
             /* Gera uma tag resgatando a chave hmac armazenada no servidor */
             String tag_assinado = Autenticador.gerar_hash_assinado(
                                                                     msg_cripto, 
@@ -291,7 +289,7 @@ public class Usuario {
     /*           METODOS ADICIONAIS            */
     /* ======================================= */ 
 
-    public static BigInteger[] gerar_chaves_assimetricas(String cpf) throws RemoteException
+    public static BigInteger[] gerar_chaves_assimetricas(Dados_Cliente cliente) throws RemoteException
     {
         BigInteger [] XYPG = new BigInteger[4];
 
@@ -306,7 +304,7 @@ public class Usuario {
          * (Para quando receber respostas do banco)
         */
         String ypg = XYPG[1].toString() + "|" + XYPG[2].toString() + "|" + XYPG[3].toString();
-        stub.receber_chave_publica( ypg, cpf );
+        stub.receber_chave_publica( ypg, cliente.cpf, cliente.senha );
 
         return XYPG;
     }
