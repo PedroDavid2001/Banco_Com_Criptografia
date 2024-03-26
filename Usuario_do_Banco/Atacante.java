@@ -44,13 +44,13 @@ public class Atacante extends Usuario{
                     System.out.print("Digite o numero da conta alvo: ");
                     String numero_conta = teclado.nextLine();
                     cliente.cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
+                    System.out.println("cpf = " + cliente.cpf);
                     /* Resgata chaves do servidor */
                     cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
                     cliente.chave_aes = stub.getChaveAES(cliente.cpf);
                     /* Resgata valores de YPG do banco */
-                    BigInteger [] ypg_banco = receber_chave_publica_do_banco(cliente.cpf);
+                    BigInteger [] ypg_banco = capturar_chave_publica_do_banco(cliente.cpf);
                     /* Atualiza o vetor de inicializacao e resgata o valor dele */
-                    stub.setVetorInit(cliente.cpf);
                     cliente.vi_bytes = stub.getVetorInit(cliente.cpf);
     
                     System.out.println("Digite a mensagem capturada: ");
@@ -74,7 +74,6 @@ public class Atacante extends Usuario{
                         String resposta = stub.receber_mensagem(cliente.cpf, msg_cripto, tag_assinado); 
                         System.out.println(desempacotar_resposta(resposta, cliente, ypg_banco));
                     } catch (NullPointerException e){
-                        e.printStackTrace();
                         System.out.println("Não obteve resposta do servidor!");
                     }
     
@@ -88,5 +87,26 @@ public class Atacante extends Usuario{
                     return;
             }
         }
+    }
+
+    public static BigInteger[] capturar_chave_publica_do_banco(String cpf) throws RemoteException
+    {
+        /*
+        * Recebe os dados do banco
+        */
+        String ypg_b = stub.divulgar_chave_publica(cpf);
+        
+        if(ypg_b.isBlank()){
+            System.out.println("Seu cpf não está cadastrado no sistema!");
+            return null;
+        }
+
+        String [] ypg_banco = ypg_b.split("\\|");
+        BigInteger [] YPG = {
+                                new BigInteger(ypg_banco[0]), 
+                                new BigInteger(ypg_banco[1]), 
+                                new BigInteger(ypg_banco[2])
+                            };
+        return YPG;
     }
 }
