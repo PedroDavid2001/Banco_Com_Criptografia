@@ -1,9 +1,13 @@
 package Banco_Com_Criptografia;
 
 import java.math.BigInteger;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
 
 import javax.crypto.Mac;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 /*
@@ -201,5 +205,78 @@ public class Autenticador {
 
         // Retorna o hash sem assinatura
         return m.toString();
+    }
+    
+    /* ======================================= */
+    /*             HASH DE SENHA               */
+    /* ======================================= */ 
+
+    protected static String hash_senha(String senha, byte [] salt) {
+        char[] senha_char = senha.toCharArray();
+        StringBuilder sb = new StringBuilder();
+        
+        try {
+
+            PBEKeySpec spec = new PBEKeySpec(senha_char, salt, 500000, 512);
+            SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            
+            byte[] hash = skf.generateSecret(spec).getEncoded();
+            
+            for(byte b: hash)
+                sb.append(String.format("%02x", b));
+            return sb.toString();
+
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            e.printStackTrace();
+            return null;
+        }
+
+    }
+
+    /* ======================================= */
+    /*           METODOS ADICIONAIS            */
+    /* ======================================= */ 
+
+    protected static byte [] gerar_salt() {
+        byte[] salt = new byte[16];
+
+        // Tenta realizar a geração do salt com o algoritmo sha-1
+        try {
+
+            SecureRandom.getInstance("SHA1PRNG").nextBytes(salt);
+            return salt;
+
+        } catch (NoSuchAlgorithmException e) {
+
+            System.out.println("Não foi possivel utilizar o SHA-1.");
+
+            // Gera o salt invocando o nextBytes() padrão
+            new SecureRandom().nextBytes(salt);
+
+            return salt;
+        }
+    }
+
+    protected static String byte_arr_to_string(byte [] arr) {
+        StringBuilder sb = new StringBuilder();
+
+        for(byte b : arr){
+            Byte byt = Byte.valueOf(b);
+            sb.append(byt.toString() + ":");
+        }
+        return sb.toString();
+    }
+
+    protected static byte [] string_to_byte_arr(String str) {
+        byte[] salt = new byte[16];
+
+        String [] str_arr = str.split(":");
+
+        for(int i = 0; i < salt.length; i++){
+            Byte byt = Byte.valueOf(str_arr[i]);
+            salt[i] = byt.byteValue();
+        }
+        return salt;
+
     }
 }

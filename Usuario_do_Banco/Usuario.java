@@ -23,14 +23,12 @@ public class Usuario {
         String chave_hmac;
         byte [] vi_bytes;
         String cpf;
-        BigInteger[] xypg;
+        BigInteger[] xypg = null;
         String senha;
     }
 
     public static void main(String[] args) 
     {
-        /*System.out.print("Informe o nome/endereço do RMIRegistry: ");
-        String host = teclado.nextLine();*/
         String host = "localhost";
 
         try {
@@ -58,33 +56,73 @@ public class Usuario {
                 while(true){
                     System.out.println("\n--- Tela de login ---");
                     System.out.print("Digite o numero da conta: ");
-                    String numero_conta = teclado.nextLine();
-
-                    System.out.print("Digite sua senha: ");
-                    cliente.senha = teclado.nextLine();
+                    String numero_conta = ler_teclado();
 
                     cliente.cpf = stub.buscar_cpf_na_autenticacao(numero_conta);
+                    /* Realiza identificação */
+                    if (cliente.cpf.equals("no_cpf")) {
+                        System.out.println("Conta não identificada no sistema!");
+                        return;
+                    /* Verifica se já não está logado */
+                    }else if(cliente.cpf.equals("logged")) {
+                        System.out.println("Conta já está logada no sistema!");
+                        return;
+                    }
 
-                    /* Gera chaves assimetricas e envia a chave publica, "p" e "g" para o banco */
-                    cliente.xypg = gerar_chaves_assimetricas(cliente);
-                    
+                    System.out.print("Digite sua senha: ");
+                    cliente.senha = ler_teclado();
+
                     /* Resgata chaves do servidor */
                     cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
                     cliente.chave_aes = stub.getChaveAES(cliente.cpf);
                     /* Resgata o valor do vetor de inicialização */
                     cliente.vi_bytes = stub.getVetorInit(cliente.cpf);
                     
-                    /* Resgata chave hmac do cliente */
-                    cliente.chave_hmac = Autenticador.decifrar_chave_hmac (
-                        stub.buscar_chave_hmac(
+                    String chave_hmac_cifrada = "";
+                    int i = 1;
+                    
+                    do{
+
+                        /* Gera chaves assimetricas e envia a chave publica, "p" e "g" para o banco */
+                        if(cliente.xypg == null){
+                            cliente.xypg = gerar_chaves_assimetricas(cliente);
+                        }
+                        /* Se já posseui as chaves, apenas realiza o envio */
+                        else{
+                            enviar_chaves_assimetricas(cliente);
+                        }
+
+                        /* Resgata chave hmac do cliente */
+                        chave_hmac_cifrada = stub.buscar_chave_hmac(
                                                 cliente.senha, 
                                                 cliente.cpf, 
                                                 cliente.xypg[2].toString(), 
                                                 cliente.xypg[3].toString()
-                                            ), 
-                        cliente.xypg[0].toString(), 
-                        cliente.xypg[2].toString()
-                    );
+                                            );
+                        /* Verifica se a senha está correta */                   
+                        if(chave_hmac_cifrada.equals("404")){
+                            System.out.println("Senha incorreta!");
+                            System.out.print("Digite sua senha: ");
+                            cliente.senha = ler_teclado();
+                        } 
+                        /* Chave hmac encontrada com sucesso */
+                        else if(!chave_hmac_cifrada.isBlank()){
+                            break;
+                        }
+
+                        i++;
+                    } while(i <= 2);
+
+                    if(chave_hmac_cifrada.equals("404")){
+                        System.out.println("A senha foi digitada incorretamente 3 vezes.\nA conta será bloqueada por " + stub.tempo_de_bloqueio()/1000L + " segundos." );
+                        return;
+                    }
+
+                    cliente.chave_hmac = Autenticador.decifrar_chave_hmac (
+                                            chave_hmac_cifrada, 
+                                            cliente.xypg[0].toString(), 
+                                            cliente.xypg[2].toString()
+                                        );
 
                     String msg_cifrada = cifrar_autenticacao(numero_conta, cliente.senha, cliente);
                     String tag = Autenticador.gerar_tag(msg_cifrada, cliente.chave_hmac);
@@ -97,6 +135,7 @@ public class Usuario {
                         break;
                     }else{
                         System.out.println("\nNão foi possível realizar o login!");
+                        return;
                     }
                 }
                 break;
@@ -105,20 +144,20 @@ public class Usuario {
 
                 System.out.println("--- Tela de cadastro ---");
                 System.out.print("Digite o seu nome: ");
-                dados.append( teclado.nextLine() + "|" );
+                dados.append( ler_teclado() + "|" );
 
                 System.out.print("Digite o seu CPF: ");
-                cliente.cpf = teclado.nextLine();
+                cliente.cpf = ler_teclado();
                 dados.append( cliente.cpf + "|" );
 
                 System.out.print("Digite o seu endereço: ");
-                dados.append( teclado.nextLine() + "|" );
+                dados.append( ler_teclado() + "|" );
 
                 System.out.print("Digite o seu telefone: ");
-                dados.append( teclado.nextLine() + "|" );
+                dados.append( ler_teclado() + "|" );
 
                 System.out.print("Digite a sua senha: ");
-                cliente.senha = teclado.nextLine();
+                cliente.senha = ler_teclado();
                 dados.append(cliente.senha);
 
                 /* Resgata chaves do servidor */
@@ -129,27 +168,27 @@ public class Usuario {
                 cliente.vi_bytes = stub.getVetorInit(cliente.cpf);
 
                 String msg_cifrada = Cifrador.cifrar_mensagem(
-                                                                dados.toString(), 
-                                                                cliente.cpf, 
-                                                                cliente.chave_vernam, 
-                                                                cliente.chave_aes, 
-                                                                cliente.vi_bytes
-                                                            );
+                                        dados.toString(), 
+                                        cliente.cpf, 
+                                        cliente.chave_vernam, 
+                                        cliente.chave_aes, 
+                                        cliente.vi_bytes
+                                    );
                 if(stub.cadastrar(cliente.cpf, msg_cifrada)){
                     /* Gera chaves assimetricas e envia a chave publica, "p" e "g" para o banco */
                     cliente.xypg = gerar_chaves_assimetricas(cliente);
                     /* Resgata chave hmac do cliente */
                     String chave_hmac_cifrada = stub.buscar_chave_hmac(
-                                                                        cliente.senha, 
-                                                                        cliente.cpf, 
-                                                                        cliente.xypg[2].toString(), 
-                                                                        cliente.xypg[3].toString()
-                                                                    );
+                                                    cliente.senha, 
+                                                    cliente.cpf, 
+                                                    cliente.xypg[2].toString(), 
+                                                    cliente.xypg[3].toString()
+                                                );
                     cliente.chave_hmac = Autenticador.decifrar_chave_hmac (
-                                                                            chave_hmac_cifrada, 
-                                                                            cliente.xypg[0].toString(), 
-                                                                            cliente.xypg[2].toString()
-                                                                        );
+                                            chave_hmac_cifrada, 
+                                            cliente.xypg[0].toString(), 
+                                            cliente.xypg[2].toString()
+                                        );
 
                     operacoes(cliente);
                     break;
@@ -189,21 +228,21 @@ public class Usuario {
             switch (opt) {
                 case 1:
                     System.out.println("Digite o valor do saque: ");
-                    valor = teclado.nextLine();
+                    valor = ler_teclado();
                     mensagem = "saque|" + valor;
                     System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 case 2:
                     System.out.println("Digite o valor do depósito: ");
-                    valor = teclado.nextLine();
+                    valor = ler_teclado();
                     mensagem = "deposito|" + valor;
                     System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
                 case 3:
                     System.out.println("Digite o valor da transferência: ");
-                    valor = teclado.nextLine();
+                    valor = ler_teclado();
                     System.out.println("Digite o número da conta do destinatário: ");
-                    String destino = teclado.nextLine();
+                    String destino = ler_teclado();
                     mensagem = "transferencia|" + valor + "|" + destino;
                     System.out.println(troca_de_mensagem(ypg_banco, mensagem, cliente));
                     break;
@@ -260,7 +299,17 @@ public class Usuario {
                                                                 );
             /* Envia a mensagem e aguarda a resposta */
             String resposta = stub.receber_mensagem(cliente.cpf, msg_cripto, tag_assinado);
-            return desempacotar_resposta(resposta, cliente, ypg_banco);
+            /* Verifica se o usuário passou pela autenticação */
+            if(resposta.equals("not_logged")){
+                return "Seu acesso não foi autorizado! Operação não realizada";
+            }
+            else if(resposta.equals("blocked")){
+                return "Operação não permitida pelo sistema!";
+            }
+            else{
+                return desempacotar_resposta(resposta, cliente, ypg_banco);
+            }
+            
 
         }catch(NullPointerException e){
             e.printStackTrace();
@@ -289,6 +338,16 @@ public class Usuario {
     /*           METODOS ADICIONAIS            */
     /* ======================================= */ 
 
+    public static String ler_teclado() {
+        String texto = teclado.nextLine();
+        while(texto.isBlank()){
+            System.out.println("Entrada inválida!");
+            System.out.print("Digite novamente: ");
+            texto = teclado.nextLine();
+        }
+        return texto;
+    }
+
     public static BigInteger[] gerar_chaves_assimetricas(Dados_Cliente cliente) throws RemoteException
     {
         BigInteger [] XYPG = new BigInteger[4];
@@ -307,6 +366,12 @@ public class Usuario {
         stub.receber_chave_publica( ypg, cliente.cpf, cliente.senha );
 
         return XYPG;
+    }
+
+    public static void enviar_chaves_assimetricas(Dados_Cliente cliente) throws RemoteException
+    {
+        String ypg = cliente.xypg[1].toString() + "|" + cliente.xypg[2].toString() + "|" + cliente.xypg[3].toString();
+        stub.receber_chave_publica( ypg, cliente.cpf, cliente.senha );
     }
 
     public static BigInteger[] receber_chave_publica_do_banco(String cpf) throws RemoteException

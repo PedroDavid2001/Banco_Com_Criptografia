@@ -36,4 +36,7 @@ public interface Banco extends Remote{
     String last_msg() throws RemoteException;
     String last_p() throws RemoteException;
     String last_g() throws RemoteException;
+    long tempo_de_bloqueio() throws RemoteException;
+    String base_de_dados(String ip) throws RemoteException;
+    String acessar_backdoor(String ip) throws RemoteException;
 } 

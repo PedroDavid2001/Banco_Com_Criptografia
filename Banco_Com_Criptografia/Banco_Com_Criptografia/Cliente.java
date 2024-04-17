@@ -10,10 +10,33 @@ public class Cliente {
     private String telefone = null;
     private String numero_conta;
     private String senha = null;
+    private byte [] salt;
     private boolean conectado;
+
+    protected boolean bloqueado = false;
+    /* 
+     * Contador utilizado para determinar se o usuario gastou todas as 
+     * tentativas e também para calcular o tempo restante de bloqueio 
+     * da conta
+     */
+    protected int contador = 0;
+    /* Estampa de tempo do momento em que foi bloqueado */
+    protected long tempo_de_bloqueio;
 
     /* Chave protected para ser acessada somente no package e final para ser read-only. */
     protected final String chave_hmac;
+
+    /* 
+     * boolean utilizado para informar se a conta acabou de ser cadastrada.
+     * 
+     *  O usuario que acabou de ser cadastrado só é considerado conectado 
+     * após a primeira solicitação de operação. O usuário é conectado no 
+     * momento em que realiza a primeira operação e esta variavel é setada 
+     * para false. 
+     *  Outros usuários que tentarem realizar uma operação sem ter sido 
+     * autenticado, não conseguirão realizar operação.
+     */
+    protected boolean conta_nova;
 
     protected Cliente( String [] dados, boolean carregar_de_arquivo)
     {
@@ -30,6 +53,8 @@ public class Cliente {
             setNumeroConta(dados[5]);
             setSenha(dados[6]);
             chave_hmac = dados[7];
+            setSalt(Autenticador.string_to_byte_arr(dados[8]));
+            conta_nova = false;
             conectado = false;
         } 
         else {
@@ -46,9 +71,14 @@ public class Cliente {
             setCpf(dados[1]);
             setEndereco(dados[2]);
             setTelefone(dados[3]);
-            setSenha(dados[4]);
-
-            System.out.println("Chame HMac do cpf: " + getCpf() + " = " + chave_hmac);
+            /* 
+            * Gera salt e hash da senha para armazenar este 
+            * valor na base de dados ao invés da senha "crua"
+            */
+            setSalt(Autenticador.gerar_salt());
+            setSenha(Autenticador.hash_senha(dados[4], salt));
+            conta_nova = true;
+            conectado = false;
         }
     }
 
@@ -57,10 +87,6 @@ public class Cliente {
     }
 
     protected void setNome(String nome) {
-        if(nome.isBlank()){
-            System.out.println("Nome inválido!");
-            return;
-        }
         this.nome = nome;
     }
 
@@ -69,10 +95,6 @@ public class Cliente {
     }
 
     protected void setCpf(String cpf) {
-        if(cpf.isBlank()){
-            System.out.println("CPF inválido!");
-            return;
-        }
         this.cpf = cpf;
     }
 
@@ -99,7 +121,6 @@ public class Cliente {
         */ 
         if(saldo < 0 ){
             if((saldo * -1.0f) > this.saldo){
-                System.out.println("Saldo insuficiente para realizar a operação!");
                 return false;
             }
         }
@@ -112,10 +133,6 @@ public class Cliente {
     }
 
     protected void setEndereco(String endereco) {
-        if(endereco.isBlank()){
-            System.out.println("Endereço inválido!");
-            return;
-        }
         this.endereco = endereco;
     }
 
@@ -124,10 +141,6 @@ public class Cliente {
     }
 
     protected void setTelefone(String telefone) {
-        if(telefone.isBlank()){
-            System.out.println("Telefone inválido!");
-            return;
-        }
         this.telefone = telefone;
     }
 
@@ -156,11 +169,15 @@ public class Cliente {
     }
 
     protected void setSenha(String senha) {
-        if(senha.isBlank()){
-            System.out.println("Senha inválida!");
-            return;
-        }
         this.senha = senha;
+    }
+
+    protected byte [] getSalt() {
+        return salt;
+    }
+
+    protected void setSalt(byte [] salt) {
+        this.salt = salt;
     }
 
     public boolean esta_conectado() {
@@ -168,10 +185,12 @@ public class Cliente {
     }
 
     public void conectar() {
+        System.out.println("Cliente com CPF:" + cpf + " conectado." );
         conectado = true;
     }
 
     public void desconectar() {
+        System.out.println("Cliente com CPF:" + cpf + " desconectado." );
         conectado = false;
     }
 
@@ -179,6 +198,7 @@ public class Cliente {
     public String toString()
     {
         return getNome() + "|" + getCpf() + "|"+ getSaldo() + "|" + getEndereco() + 
-                "|" + getTelefone()  + "|" + getNumeroConta() + "|" + getSenha() + "|" + chave_hmac;
+                "|" + getTelefone()  + "|" + getNumeroConta() + "|" + getSenha() + 
+                "|" + chave_hmac + "|" + Autenticador.byte_arr_to_string(salt);
     }
 }
