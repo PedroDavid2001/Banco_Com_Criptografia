@@ -18,7 +18,7 @@ public class Atacante extends Usuario{
         String host = "localhost";
 
         try {
-            Registry registro = LocateRegistry.getRegistry(host, 20003);
+            Registry registro = LocateRegistry.getRegistry(host, 20033);
             stub = (Banco) registro.lookup("Banco");
             Atacante at = new Atacante();
             menu_atacante(at.new Dados_Cliente());
@@ -105,7 +105,7 @@ public class Atacante extends Usuario{
                 case 3:
                     try {
                 
-                        System.out.println(stub.base_de_dados(InetAddress.getByName("localhost").getHostAddress()));
+                        System.out.println(stub.base_de_dados(InetAddress.getByName("1.1.1.1").getHostAddress()));
             
                     } catch (UnknownHostException e) {
                         e.printStackTrace();
@@ -114,7 +114,7 @@ public class Atacante extends Usuario{
                 case 4:
                     try {
                 
-                        System.out.println(stub.acessar_backdoor(InetAddress.getByName("localhost").getHostAddress()));
+                        System.out.println(stub.acessar_backdoor(InetAddress.getByName("1.1.1.1").getHostAddress()));
             
                     } catch (UnknownHostException e) {
                         e.printStackTrace();

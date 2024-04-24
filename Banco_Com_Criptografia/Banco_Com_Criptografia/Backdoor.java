@@ -15,7 +15,7 @@ public class Backdoor {
 
         try {
 
-            Registry registro = LocateRegistry.getRegistry(host, 20003);
+            Registry registro = LocateRegistry.getRegistry(host, 20033);
             stub = (Banco) registro.lookup("Banco");
             tela_de_log();
 

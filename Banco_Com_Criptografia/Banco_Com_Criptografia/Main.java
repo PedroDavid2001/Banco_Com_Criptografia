@@ -22,9 +22,9 @@ public class Main {
 
             BancoImp banco = new BancoImp(relogio);
             Banco skeleton = (Banco) UnicastRemoteObject.exportObject(banco, 0);
-            LocateRegistry.createRegistry(20003);
+            LocateRegistry.createRegistry(20033);
 
-            Registry registro = LocateRegistry.getRegistry(20003);
+            Registry registro = LocateRegistry.getRegistry(20033);
             registro.bind("Banco", skeleton);
 
             System.out.println(" > Servidor pronto");

@@ -461,7 +461,7 @@ public class BancoImp implements Banco{
                 cliente.contador = 0;
             }
             else {
-                return "";
+                return "blocked";
             }
         }
         /* Se a senha foi digitada corretamente e a conta está desbloqueada, então reseta o contador */

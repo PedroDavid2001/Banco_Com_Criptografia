@@ -32,7 +32,7 @@ public class Usuario {
         String host = "localhost";
 
         try {
-            Registry registro = LocateRegistry.getRegistry(host, 20003);
+            Registry registro = LocateRegistry.getRegistry(host, 20033);
             stub = (Banco) registro.lookup("Banco");
             Usuario usu = new Usuario();
             login_menu(usu.new Dados_Cliente());
@@ -69,8 +69,7 @@ public class Usuario {
                         return;
                     }
 
-                    System.out.print("Digite sua senha: ");
-                    cliente.senha = ler_teclado();
+                    
 
                     /* Resgata chaves do servidor */
                     cliente.chave_vernam = stub.getChaveVernam(cliente.cpf);
@@ -79,9 +78,11 @@ public class Usuario {
                     cliente.vi_bytes = stub.getVetorInit(cliente.cpf);
                     
                     String chave_hmac_cifrada = "";
-                    int i = 1;
+                    int i = 0;
                     
                     do{
+                        System.out.print("Digite sua senha: ");
+                        cliente.senha = ler_teclado();
 
                         /* Gera chaves assimetricas e envia a chave publica, "p" e "g" para o banco */
                         if(cliente.xypg == null){
@@ -102,16 +103,18 @@ public class Usuario {
                         /* Verifica se a senha está correta */                   
                         if(chave_hmac_cifrada.equals("404")){
                             System.out.println("Senha incorreta!");
-                            System.out.print("Digite sua senha: ");
-                            cliente.senha = ler_teclado();
                         } 
+                        else if(chave_hmac_cifrada.equals("blocked")){
+                            System.out.println("Conta bloqueada!");
+                            return;
+                        }
                         /* Chave hmac encontrada com sucesso */
                         else if(!chave_hmac_cifrada.isBlank()){
                             break;
                         }
 
                         i++;
-                    } while(i <= 2);
+                    } while(i < 3);
 
                     if(chave_hmac_cifrada.equals("404")){
                         System.out.println("A senha foi digitada incorretamente 3 vezes.\nA conta será bloqueada por " + stub.tempo_de_bloqueio()/1000L + " segundos." );
